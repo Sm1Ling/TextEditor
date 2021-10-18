@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.canvas.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox alignment="CENTER" prefHeight="437.0" prefWidth="642.0" xmlns="http://javafx.com/javafx/11.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="ru.hse.edu.aaarifkhanov192.controllers.MainAppController">
+   <MenuBar>
+     <menus>
+       <Menu mnemonicParsing="false" text="File">
+         <items>
+           <MenuItem mnemonicParsing="false" text="Close" />
+         </items>
+       </Menu>
+       <Menu mnemonicParsing="false" text="Edit">
+         <items>
+           <MenuItem mnemonicParsing="false" text="Delete" />
+         </items>
+       </Menu>
+       <Menu mnemonicParsing="false" text="Help">
+         <items>
+           <MenuItem mnemonicParsing="false" text="About" />
+         </items>
+       </Menu>
+     </menus>
+   </MenuBar>
+   <HBox alignment="CENTER" prefHeight="439.0" prefWidth="642.0" VBox.vgrow="ALWAYS">
+      <children>
+         <TreeView prefHeight="469.0" prefWidth="162.0" HBox.hgrow="SOMETIMES">
+            <contextMenu>
+               <ContextMenu>
+                 <items>
+                   <MenuItem mnemonicParsing="false" text="Unspecified Action" />
+                 </items>
+               </ContextMenu>
+            </contextMenu>
+         </TreeView>
+         <VBox prefHeight="200.0" prefWidth="100.0">
+            <children>
+            
+                <Canvas fx:id="myCanvas" height="437.0" width="479.0" />
+               <ScrollBar />
+            </children>
+         </VBox>
+         <ScrollBar orientation="VERTICAL" />
+      </children>
+   </HBox>
+</VBox>
