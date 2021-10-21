@@ -1,25 +1,23 @@
 package ru.hse.edu.aaarifkhanov192.controllers;
 
-import javafx.beans.value.ChangeListener;
-import javafx.beans.value.ObservableValue;
-import javafx.event.EventHandler;
 import javafx.fxml.FXML;
-import javafx.scene.Scene;
 import javafx.scene.control.ScrollBar;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
-import javafx.stage.Stage;
+import javafx.stage.Screen;
 import org.ahmadsoft.ropes.Rope;
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.Token;
 import org.jetbrains.skija.*;
 import ru.hse.edu.aaarifkhanov192.lexer.Java9Lexer;
+import ru.hse.edu.aaarifkhanov192.supportiveclasses.Debouncer;
 import ru.hse.edu.aaarifkhanov192.supportiveclasses.SettingsClass;
 
 import java.io.ByteArrayInputStream;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 
 public class MainAppController {
@@ -32,21 +30,17 @@ public class MainAppController {
     private ScrollBar vScroll;
 
 
-    private Rope text = Rope.BUILDER.build("private void render(Scene scene) {\n" +
-            "        var canvas = (javafx.scene.canvas.Canvas) scene.getRoot().lookup(\"#myCanvas\");\n" +
-            "        var gc = canvas.getGraphicsContext2D();\n" +
-            "        gc.clearRect(0, 0, 320, 240);\n" +
-            "        var data = makeImageWithSkija().encodeToData().getBytes();\n" +
-            "        javafx.scene.image.Image img = new javafx.scene.image.Image(new ByteArrayInputStream(data));\n" +
-            "        gc.drawImage(img, 0, 0);\n" +
-            "    }");
+    private Rope text;
+
+    private StringBuffer textBlock = new StringBuffer(32);
+    Debouncer<Integer> wordPrint = new Debouncer<Integer>(this::shortTextPrint,500);
 
     private List<? extends Token> tokens;
 
     private SettingsClass settingsClass = new SettingsClass();
 
-    int maxLineLength;
-    int linesCount;
+    float maxLineLength;
+    float linesCount;
 
     //Координаты центра пространства отображаемого в canvas
     float centerX;
@@ -57,73 +51,118 @@ public class MainAppController {
 
 
 
+    double screenScaleX;
+    double screenScaleY;
+
+    double screenHeight;
+    double screenWidth;
+
+    //TODO сделать отдельный класс с графическими настройками (или добавить их в класс с настройками)
+
     @FXML
     private void initialize() {
 
-        lineHeight = -settingsClass.mainFont.getMetrics().getAscent()
+        Screen screen = Screen.getPrimary();
+        screenScaleX = screen.getOutputScaleX();
+        screenScaleY = screen.getOutputScaleY();
+
+        screenHeight = myCanvas.getHeight()*screenScaleY;
+        screenWidth = myCanvas.getWidth()*screenScaleX;
+
+        settingsClass.mainFont.setSize((float)(settingsClass.mainFont.getSize()*screenScaleY));
+
+        lineHeight = (-settingsClass.mainFont.getMetrics().getAscent()
                 + settingsClass.mainFont.getMetrics().getDescent()
-                + settingsClass.mainFont.getMetrics().getLeading();
-        //TODO Сделать норм ширину буквы (8 = 7ширина буквы + 1 как пропуск)
-        letterWidth = 8;
+                + settingsClass.mainFont.getMetrics().getLeading());
+        letterWidth = TextLine.make("x", settingsClass.mainFont).getWidth() + 1;
 
-        maxLineLength = Math.round(((float)myCanvas.getWidth() - settingsClass.startXPosition)/letterWidth);
-        linesCount = Math.round((float)myCanvas.getHeight()/lineHeight);
-        System.out.println(maxLineLength);
-        System.out.println(linesCount);
+        settingsClass.startYPosition = settingsClass.startYPosition*(float)screenScaleY;
+        settingsClass.startXPosition = settingsClass.startXPosition*(float)screenScaleX;
+
+        maxLineLength = ((float)screenWidth - settingsClass.startXPosition)/letterWidth;
+        linesCount = (float)screenHeight/lineHeight;
 
 
-        runLexer();
-        render();
+        displayText("private void render() {\n" +
+                "        myCanvas.getGraphicsContext2D().clearRect(0, 0, myCanvas.getWidth(), myCanvas.getHeight());\n" +
+                "        var data = Objects.requireNonNull(makeImageWithSkija().encodeToData()).getBytes();\n" +
+                "        javafx.scene.image.Image img = new javafx.scene.image.Image(new ByteArrayInputStream(data));\n" +
+                "        myCanvas.getGraphicsContext2D().drawImage(img, 0, 0, myCanvas.getWidth(), myCanvas.getHeight());\n" +
+                "    }");
 
-        vScroll.setMin(0);
-        vScroll.setVisibleAmount(myCanvas.getHeight());
 
-        hScroll.setMin(0);
-        hScroll.setVisibleAmount(myCanvas.getWidth());
+        vScroll.valueProperty().addListener((ov, oldVal, newVal) -> {
+            centerY = (float) (newVal.doubleValue() * (vScroll.getMax() - screenHeight) / vScroll.getMax());
+            render();
+        });
 
-        myCanvas.addEventFilter(MouseEvent.MOUSE_CLICKED, (e) -> myCanvas.requestFocus());
+        hScroll.valueProperty().addListener((ov, oldVal, newVal) -> {
+            centerX = (float)(newVal.doubleValue() * (hScroll.getMax() - screenWidth)/hScroll.getMax());
+            render();
+        });
+    }
+
+    private void displayText(String txt){
+        text = Rope.BUILDER.build(txt);
 
         centerX = 0;
         centerY = 0;
 
+        vScroll.setMin(0);
+        vScroll.setVisibleAmount(screenHeight);
+
+        hScroll.setMin(0);
+        hScroll.setVisibleAmount(screenWidth);
+
+        runLexer();
+        render();
+
+        myCanvas.addEventFilter(MouseEvent.MOUSE_CLICKED, (e) -> myCanvas.requestFocus());
 
 
-        vScroll.valueProperty().addListener(new ChangeListener<Number>() {
-            public void changed(ObservableValue<? extends Number> ov,
-                                Number old_val, Number new_val) {
-                centerY = (float)(new_val.doubleValue()
-                        *(vScroll.getMax() - myCanvas.getHeight())/vScroll.getMax());
-                render();
-            }
-        });
+    }
 
-        hScroll.valueProperty().addListener(new ChangeListener<Number>() {
-            public void changed(ObservableValue<? extends Number> ov,
-                                Number old_val, Number new_val) {
-                centerX = (float)(new_val.doubleValue()
-                        * (hScroll.getMax() - myCanvas.getWidth())/hScroll.getMax());
-                render();
-            }
-        });
+
+    private void shortTextPrint(Integer x){
+        fillTextFromBuffer();
+        runLexer();
+        render();
+    }
+
+    private void fillTextFromBuffer(){
+        if(!textBlock.isEmpty()) {
+            text = text.append(textBlock.toString());
+            textBlock.delete(0,textBlock.length());
+        }
     }
 
     @FXML
     private void onKeyPressed(KeyEvent keyEvent) {
         if (keyEvent.getCode() == KeyCode.ENTER) {
+            fillTextFromBuffer();
             text = text.append("\n");
         }
         else if (keyEvent.getCode() == KeyCode.BACK_SPACE){
+            fillTextFromBuffer();
             text = text.delete(text.length()-1,text.length());
         }
         else if(keyEvent.getCode() == KeyCode.V && keyEvent.isShortcutDown()){
             System.out.println("Here should be Ctrl V Handler");
+        }
+        else if(keyEvent.getCode() == KeyCode.SPACE){
+            fillTextFromBuffer();
+            text = text.append(" ");
         }
         else {
             var c = keyEvent.getText();
             if(keyEvent.isShiftDown()){
                 c = c.toUpperCase(Locale.ROOT);
             }
-            text = text.append(c);
+            textBlock.append(c);
+            wordPrint.call(1);
+            //TODO приделать отрисовку букв в конце текста
+            System.out.println(textBlock);
+            return;
         }
 
         runLexer();
@@ -137,20 +176,17 @@ public class MainAppController {
 
     // TODO Переделать
     private void render() {
-        var gc = myCanvas.getGraphicsContext2D();
-        gc.clearRect(0, 0, myCanvas.getWidth(), myCanvas.getHeight());
-        var data = makeImageWithSkija().encodeToData().getBytes();
+        myCanvas.getGraphicsContext2D().clearRect(0, 0, myCanvas.getWidth(), myCanvas.getHeight());
+        var data = Objects.requireNonNull(makeImageWithSkija().encodeToData()).getBytes();
         javafx.scene.image.Image img = new javafx.scene.image.Image(new ByteArrayInputStream(data));
-        gc.drawImage(img, 0, 0);
-
-
+        myCanvas.getGraphicsContext2D().drawImage(img, 0, 0, myCanvas.getWidth(), myCanvas.getHeight());
     }
 
     //TODO Переделать с учетом конкретной области
     private Image makeImageWithSkija() {
-        Surface surface = Surface.makeRasterN32Premul((int)myCanvas.getWidth(), (int)myCanvas.getHeight());
-        Canvas canvas = surface.getCanvas();
+        Surface surface = Surface.makeRasterN32Premul((int)(screenWidth),(int)(screenHeight));
 
+        Canvas canvas = surface.getCanvas();
         Paint paint = settingsClass.mainColor;
 
         double x = settingsClass.startXPosition - centerX;
@@ -163,48 +199,31 @@ public class MainAppController {
 
         var font = settingsClass.mainFont;
         for (int i = 0; i < text.length(); i++) {
-            //Token currToken = null;
-            //for (var token : tokens) {
-            //    if (token.getStartIndex() <= i && token.getStopIndex() >= i) {
-            //        currToken = token;
-            //        break;
-            //    }
-            //}
-//
-            //if (currToken != null) {
-            //    switch (currToken.getType()) {
-            //        case 1 -> paint.setColor(0xAABB0000);
-            //        case 2 -> paint.setColor(0xBBBBCC00);
-            //        case 3 -> paint.setColor(0x55551100);
-            //        case 4 -> paint.setColor(0x88683400);
-            //    }
-            //}
 
             char c = text.charAt(i);
             if (c != '\n') {
                 var textLine = TextLine.make(String.valueOf(c), font);
                 canvas.drawTextLine(textLine, (float)x, (float)y, paint);
-                x += textLine.getWidth() + 1;
+                x += textLine.getWidth()+1;
                 charIter += 1;
                 mchar = Math.max(mchar,charIter);
             }
             else {
-                y += -font.getMetrics().getAscent() + font.getMetrics().getDescent() + font.getMetrics().getLeading();
+                y += lineHeight;
                 x = settingsClass.startXPosition  - centerX;
                 charIter = 0;
                 lineNum += 1;
             }
-
-            vScroll.setMax(Math.max(linesCount,lineNum)*lineHeight);
-            hScroll.setMax(letterWidth*Math.max(maxLineLength,mchar)+settingsClass.startXPosition);
-
         }
 
+        vScroll.setMax(Math.max(linesCount,lineNum)*lineHeight);
+        hScroll.setMax(Math.max(maxLineLength,mchar)*letterWidth + settingsClass.startXPosition);
+
         paint = new Paint().setColor(0xFF00FF00);
-        canvas.drawLine(0,0,(float)myCanvas.getWidth(),0, paint);
-        canvas.drawLine(0,0,0,(float)myCanvas.getHeight(), paint);
-        canvas.drawLine((float)myCanvas.getWidth(),0,(float)myCanvas.getWidth(),(float)myCanvas.getHeight(), paint);
-        canvas.drawLine(0,(float)myCanvas.getHeight(),(float)myCanvas.getWidth(),(float)myCanvas.getHeight(), paint);
+        canvas.drawLine(0,0,(float)screenWidth,0, paint);
+        canvas.drawLine(0,0,0,(float)screenHeight, paint);
+        canvas.drawLine((float)screenWidth-1,0,(float)screenWidth-1,(float)screenHeight, paint);
+        canvas.drawLine(0,(float)screenHeight-1,(float)screenWidth,(float)screenHeight-1, paint);
 
         return surface.makeImageSnapshot();
     }

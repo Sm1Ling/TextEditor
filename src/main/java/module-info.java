@@ -4,7 +4,7 @@ module ru.hse.edu.aaarifkhanov192.TextEditor {
     requires org.jetbrains.skija.windows;
     requires org.jetbrains.skija.shared;
     requires org.antlr.antlr4.runtime;
-    requires ropes;
+    requires ropes; //library taken from http://www.ahmadsoft.org/source/xref/ropes-1.2.5/
     requires java.desktop;
     requires java.datatransfer;
 
