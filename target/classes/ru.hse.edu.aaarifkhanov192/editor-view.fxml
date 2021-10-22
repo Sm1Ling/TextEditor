@@ -28,7 +28,7 @@
       <children>
          <AnchorPane maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="200.0" prefWidth="200.0" style="-fx-background-color: #3C3F41;" HBox.hgrow="ALWAYS">
             <children>
-               <TreeView prefHeight="413.0" prefWidth="170.0" styleClass="tree-view" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+               <TreeView fx:id="treeView" prefHeight="413.0" prefWidth="170.0" styleClass="tree-view" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                   <contextMenu>
                      <ContextMenu styleClass="tree-cell">
                        <items>

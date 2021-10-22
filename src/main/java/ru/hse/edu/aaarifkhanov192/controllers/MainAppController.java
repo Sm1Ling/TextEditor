@@ -1,7 +1,12 @@
 package ru.hse.edu.aaarifkhanov192.controllers;
 
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
+import javafx.event.EventHandler;
 import javafx.fxml.FXML;
+import javafx.scene.Scene;
 import javafx.scene.control.ScrollBar;
+import javafx.scene.control.TreeView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
@@ -10,6 +15,8 @@ import org.ahmadsoft.ropes.Rope;
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.Token;
 import org.jetbrains.skija.*;
+import ru.hse.edu.aaarifkhanov192.controllers.directorytree.DirectoryResult;
+import ru.hse.edu.aaarifkhanov192.controllers.directorytree.DirectoryTree;
 import ru.hse.edu.aaarifkhanov192.lexer.Java9Lexer;
 import ru.hse.edu.aaarifkhanov192.supportiveclasses.Debouncer;
 import ru.hse.edu.aaarifkhanov192.supportiveclasses.SettingsClass;
@@ -17,11 +24,12 @@ import ru.hse.edu.aaarifkhanov192.supportiveclasses.SettingsClass;
 import java.io.ByteArrayInputStream;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 
 
 public class MainAppController {
 
+    @FXML
+    private TreeView<String> treeView;
     @FXML
     private javafx.scene.canvas.Canvas myCanvas;
     @FXML
@@ -61,6 +69,15 @@ public class MainAppController {
 
     @FXML
     private void initialize() {
+        DirectoryTree dt = new DirectoryTree("D:\\Projects\\AndroidStudioProjects\\advanced-2021-architecture-1\\apikey.properties\\");
+        DirectoryResult r = dt.fillRoot();
+        treeView.setOnMouseClicked(new EventHandler<MouseEvent>() {
+            @Override
+            public void handle(MouseEvent mouseEvent) {
+                dt.getPathToTappedFile(mouseEvent, treeView);
+            }
+        });
+        treeView.setRoot(r.rootTreeNode);
 
         Screen screen = Screen.getPrimary();
         screenScaleX = screen.getOutputScaleX();
@@ -187,6 +204,7 @@ public class MainAppController {
         Surface surface = Surface.makeRasterN32Premul((int)(screenWidth),(int)(screenHeight));
 
         Canvas canvas = surface.getCanvas();
+
         Paint paint = settingsClass.mainColor;
 
         double x = settingsClass.startXPosition - centerX;
