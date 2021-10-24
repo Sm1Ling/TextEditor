@@ -9,18 +9,21 @@ import javafx.scene.control.TreeView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.layout.HBox;
 import javafx.stage.Screen;
 import org.ahmadsoft.ropes.Rope;
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.jetbrains.skija.*;
-import ru.hse.edu.aaarifkhanov192.controllers.directorytree.DirectoryResult;
-import ru.hse.edu.aaarifkhanov192.controllers.directorytree.DirectoryTree;
+import ru.hse.edu.aaarifkhanov192.supportiveclasses.Action;
+import ru.hse.edu.aaarifkhanov192.supportiveclasses.directorytree.DirectoryResult;
+import ru.hse.edu.aaarifkhanov192.supportiveclasses.directorytree.DirectoryTree;
 import ru.hse.edu.aaarifkhanov192.lexer.Java9Lexer;
 import ru.hse.edu.aaarifkhanov192.supportiveclasses.Debouncer;
 import ru.hse.edu.aaarifkhanov192.supportiveclasses.SettingsClass;
 import ru.hse.edu.aaarifkhanov192.supportiveclasses.TextCanvas;
 
-import java.io.ByteArrayInputStream;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 
@@ -34,44 +37,47 @@ public class MainAppController {
     private ScrollBar hScroll;
     @FXML
     private ScrollBar vScroll;
+    @FXML
+    private HBox tabbox;
 
 
     // region Общие поля
-    private SettingsClass settingsClass = new SettingsClass();
-    private DirectoryTree dt = new DirectoryTree(".");
+    private final SettingsClass settingsClass = new SettingsClass();
+    private final DirectoryTree dt = new DirectoryTree(".");
 
     //Координаты центра пространства отображаемого в canvas
-    float centerX;
-    float centerY;
+    private float centerX;
+    private float centerY;
 
     //ширина и высота ячейки буквы
-    float letterWidth;
-    float lineHeight;
+    private float letterWidth;
+    private float lineHeight;
     //коэффициенты увеличения разрешения изображения
-    float screenScaleX;
-    float screenScaleY;
+    private float screenScaleX;
+    private float screenScaleY;
     //размеры рендеримой картинки
-    float screenHeight;
-    float screenWidth;
+    private float screenHeight;
+    private float screenWidth;
     //номер строки и символа, на который указывает курсор
-    int coursorX;
-    int coursorY;
     //информация о максимальном размере строки и количестве строк в canvas
-    public float maxLineLength;
-    public float linesCount;
+    private float maxLineLength;
+    private float linesCount;
     //окно активного текст
-    TextCanvas activeCanvas;
+    private TextCanvas activeCanvas;
     //список окон с текстами
-    List<TextCanvas> canWindows = new ArrayList<>();
+    private final List<TextCanvas> canWindows = new ArrayList<>();
     // endregion
 
 
 
-    Debouncer<Integer> wordPrint = new Debouncer<Integer>(this::shortTextPrint,500);
+    private final Debouncer<Integer> wordPrint = new Debouncer<Integer>(this::relex,500);
+    private final Debouncer<Integer> fileSaver = new Debouncer<>(this::saveFile,30000);
 
-    //TODO сделать отдельный класс с графическими настройками (или добавить их в класс с настройками)
-    //TODO сделать класс-содержатель информации для отдельных подокон с текстами
-
+    //TODO Разобраться с CtrlZ CtrlV
+    //TODO Ало, когда буквы красить будем (лексер, аст, токены, интервалТри с цветами)
+    //TODO Разобраться с добавлением таб окон
+    //TODO Возможно присобачить выделение
+    //TODO Однажды тут будут тесты
     @FXML
     private void initialize() {
 
@@ -87,13 +93,12 @@ public class MainAppController {
         lineHeight = (-settingsClass.mainFont.getMetrics().getTop()
                 + settingsClass.mainFont.getMetrics().getBottom());
         letterWidth = TextLine.make("x", settingsClass.mainFont).getWidth();
-        System.out.println(letterWidth);
 
         settingsClass.startYPosition = settingsClass.startYPosition*(float)screenScaleY;
         settingsClass.startXPosition = settingsClass.startXPosition*(float)screenScaleX;
 
-        maxLineLength = ((float)screenWidth - settingsClass.startXPosition)/letterWidth;
-        linesCount = (float)screenHeight/lineHeight;
+        maxLineLength = (screenWidth - settingsClass.startXPosition)/letterWidth;
+        linesCount = screenHeight/lineHeight;
 
         hScroll.setVisible(false);
         vScroll.setVisible(false);
@@ -102,7 +107,8 @@ public class MainAppController {
         DirectoryResult r = dt.fillRoot();
         treeView.setOnMouseClicked(mouseEvent -> {
             String path = dt.getPathToTappedFile(mouseEvent, treeView);
-            if(path != null) {
+            if(path != null &&
+                    canWindows.stream().noneMatch((o)-> o.filePath.equals(path))) {
                 createPannel(dt.readText(path), path);
             }
         });
@@ -110,22 +116,12 @@ public class MainAppController {
     }
 
     private void createPannel(String text, String path){
+
         activeCanvas = new TextCanvas();
         canWindows.add(activeCanvas);
 
         activeCanvas.text = Rope.BUILDER.build(text);
         activeCanvas.filePath = path;
-
-        if(canWindows.size() == 1){
-            myCanvas.setVisible(true);
-            hScroll.setVisible(true);
-            vScroll.setVisible(true);
-
-            //TODO Рассмотреть переопределение всех событий на поля активного окна
-            myCanvas.addEventFilter(MouseEvent.MOUSE_CLICKED, canvasMouseClicked);
-            vScroll.valueProperty().addListener(vScrollListener);
-            hScroll.valueProperty().addListener(hScrollListener);
-        }
 
         centerX = 0;
         centerY = 0;
@@ -136,73 +132,87 @@ public class MainAppController {
         hScroll.setMin(0);
         hScroll.setVisibleAmount(screenWidth);
 
+        textAnalizer();
         runLexer();
         render();
+
+        if(canWindows.size() == 1){
+            myCanvas.setVisible(true);
+            hScroll.setVisible(true);
+            vScroll.setVisible(true);
+
+            //TODO Рассмотреть переопределение всех событий на поля активного окна
+            myCanvas.setOnKeyPressed(onKeyPressed);
+            myCanvas.addEventFilter(MouseEvent.MOUSE_CLICKED, canvasMouseClicked);
+            vScroll.valueProperty().addListener(vScrollListener);
+            hScroll.valueProperty().addListener(hScrollListener);
+        }
     }
 
     private void switchPannel(int i){
         //TODO не забыть поменять позицию относительно скролла
     }
 
-    private void shortTextPrint(Integer x){
-        fillTextFromBuffer();
-        render();
-    }
-
-    private boolean fillTextFromBuffer(){
-        if(!activeCanvas.textBlock.getText().isEmpty()) {
-            activeCanvas.text = activeCanvas.text.append(activeCanvas.textBlock.getText().toString());
-            activeCanvas.textBlock.clear();
-            return true;
-        }
-        return false;
-    }
-
-    @FXML
-    private void onKeyPressed(KeyEvent keyEvent) {
-        if (keyEvent.getCode() == KeyCode.ENTER) {
-            fillTextFromBuffer();
-            activeCanvas.text = activeCanvas.text.append("\n");
-        }
-        else if (keyEvent.getCode() == KeyCode.BACK_SPACE){
-            fillTextFromBuffer();
-
-            activeCanvas.text = activeCanvas.text.delete(
-                    activeCanvas.text.length()-1,activeCanvas.text.length());
-        }
-        else if(keyEvent.getCode() == KeyCode.V && keyEvent.isShortcutDown()){
-            System.out.println("Here should be Ctrl V Handler");
-        }
-        else if(keyEvent.getCode() == KeyCode.SPACE){
-            fillTextFromBuffer();
-            activeCanvas.text = activeCanvas.text.append(" ");
-        }
-        else {
-            var c = keyEvent.getText();
-            if(keyEvent.isShiftDown()){
-                c = c.toUpperCase(Locale.ROOT);
-            }
-            if(!activeCanvas.textBlock.isFilled()){ // запоминаю место с которого начинает писаться минибуфер
-                activeCanvas.textBlock.setCharNum(activeCanvas.coursorX);
-                activeCanvas.textBlock.setLineNum(activeCanvas.coursorY+1);
-            }
-            activeCanvas.textBlock.getText().append(c);
-            wordPrint.call(1);
-            //TODO отрисовка rope+textBlock  (с учетом местоположения textBlock)
-            render();
-            return;
-        }
-
+    private void relex(Integer x){
         runLexer();
         render();
     }
 
-    //region Render Block
+    private void saveFile(Integer x){
+        try (Writer writer = new BufferedWriter(new OutputStreamWriter(
+                new FileOutputStream(activeCanvas.filePath), StandardCharsets.UTF_8))) {
+            writer.write(activeCanvas.text.toString());
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
     private void runLexer() {
         Java9Lexer lexer = new Java9Lexer(new ANTLRInputStream(activeCanvas.text.toString()));
         activeCanvas.tokens = lexer.getAllTokens().stream().toList();
     }
+
+
+    private void textAnalizer(){
+        int charIter = 0;
+
+        activeCanvas.linesLengths = new ArrayList<>(Math.max(activeCanvas.linesLengths.size(), 64));
+
+        for(Character character : activeCanvas.text){
+            if(character != '\n') {
+                charIter += 1;
+            }
+            else{
+                activeCanvas.linesLengths.add(charIter+1);
+                charIter = 0;
+            }
+        }
+        activeCanvas.linesLengths.add(charIter);
+
+        vScroll.setMax(Math.max(linesCount,activeCanvas.linesLengths.size())*lineHeight);
+        hScroll.setMax(Math.max(maxLineLength,Collections.max(activeCanvas.linesLengths))
+                * letterWidth + settingsClass.startXPosition);
+    }
+
+    private int lettersToCursor(){
+        int letters = 0;
+        for(int i = 0; i < activeCanvas.linesLengths.size(); i++){
+            if(i != activeCanvas.coursorY) {
+                letters += activeCanvas.linesLengths.get(i);
+            }
+            else{
+                letters += activeCanvas.coursorX;
+                return letters;
+            }
+        }
+        return letters;
+    }
+
+    //region Render Block
 
     // TODO Переделать
     private void render() {
@@ -212,82 +222,8 @@ public class MainAppController {
         myCanvas.getGraphicsContext2D().drawImage(img, 0, 0, myCanvas.getWidth(), myCanvas.getHeight());
     }
 
-    /** Сомневаюсь в потребности этого метода
-    private void renderLine(int lineBegin, int lineEnd) {
-        var data = Objects.requireNonNull(makeLineImage(lineBegin,lineEnd).encodeToData()).getBytes();
-        javafx.scene.image.Image img = new javafx.scene.image.Image(new ByteArrayInputStream(data));
-        float ybegin = (lineBegin*lineHeight + settingsClass.mainFont.getMetrics().getTop()
-                + settingsClass.startYPosition-centerY) / screenScaleY;
-        float yend = (lineEnd*lineHeight + settingsClass.mainFont.getMetrics().getBottom()
-                + settingsClass.startYPosition-centerY) / screenScaleY;
-        System.out.println(ybegin + " " + yend);
-        myCanvas.getGraphicsContext2D().clearRect(0, ybegin, myCanvas.getWidth(),yend);
-        myCanvas.getGraphicsContext2D().drawImage(img, 0, ybegin, myCanvas.getWidth(),yend);
-    }*/
-
-    /**
-    private Image makeLineImage(int lineBegin, int lineEnd) {
-        Surface surface = Surface.makeRasterN32Premul((int)(screenWidth),(int)(lineHeight*(lineEnd-lineBegin+1)));
-        Canvas canvas = surface.getCanvas();
-        Paint paint = settingsClass.mainColor;
-
-        float x = settingsClass.startXPosition - centerX;
-        float y = settingsClass.startYPosition;
-
-        int charIter = 0;
-        int mchar = 0;
-        int lineNumber = 1;
-
-        var font = settingsClass.mainFont;
-        for (int i = 0; i < activeCanvas.text.length(); i++) {
-
-            char c = activeCanvas.text.charAt(i);
-            if (c == '\n') {
-                if(lineNumber == lineEnd){
-                    break;
-                }
-                if(lineNumber >= lineBegin){
-                    y += lineHeight;
-                    x = settingsClass.startXPosition  - centerX;
-                    charIter = 0;
-                }
-                lineNumber += 1;
-            }
-            else if(lineNumber > lineBegin) {
-                if (lineNumber == activeCanvas.coursorY){
-                    if(activeCanvas.coursorX == charIter){
-                        var textLine = TextLine.make(activeCanvas.textBlock.getText().toString(), font);
-                        canvas.drawTextLine(textLine, x, y, paint);
-                        System.out.println(textLine.getWidth());
-                        x += textLine.getWidth() + 1;
-                        charIter += activeCanvas.textBlock.getText().length();
-                    }
-                }
-                var textLine = TextLine.make(String.valueOf(c), font);
-                canvas.drawTextLine(textLine, x, y, paint);
-                x += textLine.getWidth() + 1;
-                charIter += 1;
-                mchar = Math.max(mchar, charIter);
-            }
-        }
-
-        x = settingsClass.startXPosition - centerX + activeCanvas.coursorX*letterWidth;
-        y = settingsClass.startYPosition - centerY + (activeCanvas.coursorY-lineBegin)*lineHeight;
-
-
-        canvas.drawLine(x,y+font.getMetrics().getDescent(),
-                x,y+font.getMetrics().getAscent(),settingsClass.coursorColor);
-
-        hScroll.setMax(Math.max(maxLineLength,mchar)*letterWidth + settingsClass.startXPosition);
-
-        return surface.makeImageSnapshot();
-    }*/
-
-
-    //TODO Переделать с учетом конкретной области
     private Image makeImage() {
         Surface surface = Surface.makeRasterN32Premul((int)(screenWidth),(int)(screenHeight));
-
         Canvas canvas = surface.getCanvas();
 
         Paint paint = settingsClass.mainColor;
@@ -295,46 +231,20 @@ public class MainAppController {
         float x = settingsClass.startXPosition - centerX;
         float y = settingsClass.startYPosition - centerY;
 
-        int charIter = 0;
-        int lineNum = 1;
-
-        int mchar = 0;
-        boolean isTextBlockWritten = false;
-
         var font = settingsClass.mainFont;
+        int i = 0;
 
-
-        for (int i = 0; i < activeCanvas.text.length(); i++) {
-
-            char c = activeCanvas.text.charAt(i);
-            if (c != '\n') {
-                if(lineNum == activeCanvas.textBlock.getLineNum() &&
-                        charIter == activeCanvas.textBlock.getCharNum()){
-                    var textLine = TextLine.make(activeCanvas.textBlock.getText().toString(),font);
-                    canvas.drawTextLine(textLine,x,y,paint);
-                    x += textLine.getWidth();
-                    charIter += activeCanvas.textBlock.getText().length();
-                    activeCanvas.coursorX = charIter;
-                    isTextBlockWritten = true;
-                }
-                var textLine = TextLine.make(String.valueOf(c), font);
+        for (Character character: activeCanvas.text) {
+            if (character != '\n') {
+                var textLine = TextLine.make(String.valueOf(character), font);
                 canvas.drawTextLine(textLine, x, y, paint);
                 x += textLine.getWidth();
-                charIter += 1;
-                mchar = Math.max(mchar,charIter);
             }
             else {
-                if(!isTextBlockWritten && lineNum == activeCanvas.textBlock.getLineNum()){
-                    var textLine = TextLine.make(activeCanvas.textBlock.getText().toString(),font);
-                    canvas.drawTextLine(textLine,x,y,paint);
-                    charIter += activeCanvas.textBlock.getText().length();
-                    activeCanvas.coursorX = charIter;
-                }
                 y += lineHeight;
                 x = settingsClass.startXPosition  - centerX;
-                charIter = 0;
-                lineNum += 1;
             }
+            i++;
         }
 
         x = settingsClass.startXPosition - centerX + activeCanvas.coursorX*letterWidth;
@@ -343,9 +253,6 @@ public class MainAppController {
         canvas.drawLine(x,y+font.getMetrics().getDescent(),
                 x,y+font.getMetrics().getAscent(),settingsClass.coursorColor);
 
-        vScroll.setMax(Math.max(linesCount,lineNum)*lineHeight);
-        hScroll.setMax(Math.max(maxLineLength,mchar)*letterWidth + settingsClass.startXPosition);
-
         return surface.makeImageSnapshot();
     }
 
@@ -353,19 +260,95 @@ public class MainAppController {
 
     //region listeners Block
 
+    private final EventHandler<KeyEvent> onKeyPressed = new javafx.event.EventHandler<>() {
+        @Override
+        public void handle(KeyEvent keyEvent) {
+            int letNum = lettersToCursor();
+            if (keyEvent.getCode() == KeyCode.ENTER) {
+                activeCanvas.text = activeCanvas.text.insert(letNum,"\n");
+                activeCanvas.coursorX = 0;
+                activeCanvas.coursorY += 1;
+                activeCanvas.undoRedo.addAction(new Action(letNum,letNum+1,"\n", false));
+            }
+            else if (keyEvent.getCode() == KeyCode.BACK_SPACE) {
+                if(activeCanvas.coursorY == 0 && activeCanvas.coursorX == 0){
+                    return;
+                }
+
+                if (activeCanvas.coursorX != 0) {
+                    activeCanvas.coursorX -= 1;
+                }
+                else {
+                    activeCanvas.coursorX = activeCanvas.linesLengths.get(activeCanvas.coursorY - 1)-1;
+                    activeCanvas.coursorY -= 1;
+                }
+
+                activeCanvas.undoRedo.addAction(new Action(letNum-1,letNum,
+                        String.valueOf(activeCanvas.text.charAt(letNum)), true));
+                activeCanvas.text = activeCanvas.text.delete(
+                        letNum - 1, letNum);
+
+            }
+            else if (keyEvent.getCode() == KeyCode.V && keyEvent.isShortcutDown()) {
+                System.out.println("Here should be Ctrl V Handler");
+            }
+            else if (keyEvent.getCode() == KeyCode.TAB){
+                activeCanvas.undoRedo.addAction(new Action(letNum,letNum+4,"    ", false));
+                activeCanvas.text = activeCanvas.text.insert(letNum,"    ");
+                activeCanvas.coursorX += 4;
+            }
+            else if (keyEvent.getCode() == KeyCode.Z && keyEvent.isShortcutDown()){
+                Action act = activeCanvas.undoRedo.undoAction();
+                if(act.isDelete()){
+                    activeCanvas.text = activeCanvas.text.delete(act.getStart(),act.getEnd());
+                } else {
+                    activeCanvas.text = activeCanvas.text.insert(act.getStart(),act.getText());
+                }
+            }
+            else if (keyEvent.getCode() == KeyCode.Y && keyEvent.isShortcutDown()){
+                Action act = activeCanvas.undoRedo.redoAction();
+                if(act.isDelete()){
+                    activeCanvas.text = activeCanvas.text.delete(act.getStart(),act.getEnd());
+                } else {
+                    activeCanvas.text = activeCanvas.text.insert(act.getStart(),act.getText());
+                }
+            }
+            else if(keyEvent.getText().isEmpty()){
+                return;
+            }
+            else {
+                var c = keyEvent.getText();
+                if (keyEvent.isShiftDown()) {
+                    c = c.toUpperCase(Locale.ROOT);
+                }
+                activeCanvas.undoRedo.addAction(new Action(letNum,letNum+1,c, false));
+                activeCanvas.text = activeCanvas.text.insert(letNum,c);
+                activeCanvas.coursorX += 1;
+            }
+
+            wordPrint.call(1);
+            fileSaver.call(1);
+            textAnalizer();
+            render();
+        }
+    };
+
     private final EventHandler<MouseEvent> canvasMouseClicked = new javafx.event.EventHandler<>(){
         @Override
         public void handle(MouseEvent mouseEvent) {
             myCanvas.requestFocus();
 
-            if(fillTextFromBuffer()){
-                runLexer();
-            }
-
             activeCanvas.coursorX = (int) Math.round((mouseEvent.getX() * screenScaleX
                     + centerX - settingsClass.startXPosition)/letterWidth); //номер буквы в строке
             activeCanvas.coursorY = (int) Math.round((mouseEvent.getY() * screenScaleY
                     + 1 + lineHeight/2 + centerY - settingsClass.startYPosition)/lineHeight); //номер строки
+
+            activeCanvas.coursorY = Math.min(activeCanvas.coursorY, activeCanvas.linesLengths.size()-1);
+            activeCanvas.coursorY = Math.max(activeCanvas.coursorY,0);
+
+            activeCanvas.coursorX = Math.min(
+                    activeCanvas.linesLengths.get(activeCanvas.coursorY)-1, activeCanvas.coursorX);
+            activeCanvas.coursorX = Math.max(activeCanvas.coursorX,0);
 
             render();
         }
@@ -388,7 +371,6 @@ public class MainAppController {
             render();
         }
     };
-
 
     //endregion
 }

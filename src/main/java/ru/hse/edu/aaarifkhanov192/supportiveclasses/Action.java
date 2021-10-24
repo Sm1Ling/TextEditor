@@ -8,7 +8,7 @@ public class Action {
     private final String text;
     private final boolean isDelete;
 
-    Action(int start, int end, String text, boolean isDelete) {
+    public Action(int start, int end, String text, boolean isDelete) {
         this.start = start;
         this.end = end;
         this.text = text;

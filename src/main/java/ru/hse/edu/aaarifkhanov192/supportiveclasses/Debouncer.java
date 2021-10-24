@@ -1,10 +1,7 @@
 package ru.hse.edu.aaarifkhanov192.supportiveclasses;
 
 
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 /**
  * Debouncer pattern
@@ -27,11 +24,16 @@ public class Debouncer <T> {
         TimerTask task = new TimerTask(key);
 
         TimerTask prev;
-        do {
-            prev = delayedMap.putIfAbsent(key, task);
-            if (prev == null)
-                sched.schedule(task, interval, TimeUnit.MILLISECONDS);
-        } while (prev != null && !prev.extend()); // Exit only if new task was added to map, or existing task was extended successfully
+        try {
+            do {
+                prev = delayedMap.putIfAbsent(key, task);
+                if (prev == null)
+                    sched.schedule(task, interval, TimeUnit.MILLISECONDS);
+            } while (prev != null && !prev.extend()); // Exit only if new task was added to map, or existing task was extended successfully
+        }
+        catch (RejectedExecutionException e){
+            System.out.println(e.getMessage());
+        }
     }
 
     public void terminate() {

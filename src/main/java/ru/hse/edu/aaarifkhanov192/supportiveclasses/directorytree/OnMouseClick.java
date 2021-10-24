@@ -1,4 +1,4 @@
-package ru.hse.edu.aaarifkhanov192.controllers.directorytree;
+package ru.hse.edu.aaarifkhanov192.supportiveclasses.directorytree;
 
 import javafx.scene.control.TreeView;
 import javafx.scene.input.MouseEvent;

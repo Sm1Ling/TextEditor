@@ -15,8 +15,8 @@ public class SettingsClass {
 
     public final Integer undoRedoSize = 50;
 
-    public float startXPosition = mainFont.getMetrics().getXMax();
-    public float startYPosition = mainFont.getMetrics().getHeight();;
+    public float startXPosition = 4;
+    public float startYPosition = mainFont.getMetrics().getHeight();
 
     public SettingsClass(){
         // TODO Сюда добавить обработку разных подсветок

@@ -1,4 +1,4 @@
-package ru.hse.edu.aaarifkhanov192.controllers.directorytree;
+package ru.hse.edu.aaarifkhanov192.supportiveclasses.directorytree;
 
 import javafx.scene.control.MultipleSelectionModel;
 import javafx.scene.control.TreeItem;
@@ -107,13 +107,13 @@ public class DirectoryTree implements OnMouseClick {
             if (isFile) {
                 StringBuilder res = new StringBuilder();
                 while (pp != null) {
-                    res.insert(0, pp.getValue() + "\\");
+                    res.insert(0, pp.getValue() + File.separator);
                     pp = pp.getParent();
                     //Чтобы не дошел до корня, чтобы не было пути <root>/<root>/file.txt/
                     if(pp.getParent() == null)
                         break;
                 }
-                return myRes.dirPath + "\\" + res;
+                return myRes.dirPath + File.separator + res;
             }
         }
         return null;
