@@ -4,5 +4,5 @@ import javafx.scene.control.TreeView;
 import javafx.scene.input.MouseEvent;
 
 interface OnMouseClick {
-    void getPathToTappedFile(MouseEvent mouseEvent, TreeView<String> treeView);
+    String getPathToTappedFile(MouseEvent mouseEvent, TreeView<String> treeView);
 }

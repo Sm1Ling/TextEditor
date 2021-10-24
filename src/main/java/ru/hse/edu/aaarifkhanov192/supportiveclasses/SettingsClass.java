@@ -7,7 +7,9 @@ import java.util.Map;
 
 public class SettingsClass {
     public final Font mainFont = new Font(Typeface.makeFromName("Consolas", FontStyle.NORMAL));;
+
     public final Paint mainColor = new Paint().setColor(0xffA9B7C6); //opacity-red-green-blue
+    public final Paint coursorColor = new Paint().setColor(0xffffffff);
 
     public final Map<String,Integer> colorMap = new HashMap<>();
 

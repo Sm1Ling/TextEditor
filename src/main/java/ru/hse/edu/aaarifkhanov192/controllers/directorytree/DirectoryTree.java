@@ -22,6 +22,8 @@ public class DirectoryTree implements OnMouseClick {
         setPath(path);
     }
 
+    private String activeFileText = "";
+
     public String getPath() {
         return path;
     }
@@ -77,28 +79,26 @@ public class DirectoryTree implements OnMouseClick {
      * Считывает текст по заданному пути файла <code>path</code>.
      * @param path Путь до файла.
      */
-    private void readText(String path) {
+    public String readText(String path) {
         StringBuilder txt = new StringBuilder();
-        System.out.println(path);
         try {
             File file = new File(path);
             Scanner scan = new Scanner(file);
             while (scan.hasNextLine()) {
                 String data = scan.nextLine();
-                System.out.println(data);
                 txt.append(data).append("\n");
             }
             scan.close();
         } catch (FileNotFoundException e) {
-            System.out.println("An error occurred.");
             e.printStackTrace();
         }
-
+        return txt.toString();
     }
 
     @Override
-    public void getPathToTappedFile(MouseEvent mouseEvent, TreeView<String> treeView) {
+    public String getPathToTappedFile(MouseEvent mouseEvent, TreeView<String> treeView) {
         if (mouseEvent.getClickCount() == 2) {
+            //TODO Обработка дабл клика
             MultipleSelectionModel<TreeItem<String>> sm = treeView.getSelectionModel();
             TreeItem<String> pp = sm.getSelectedItem();
             boolean isFile = pp.getValue().contains(".") && (pp.getChildren() == null
@@ -113,9 +113,10 @@ public class DirectoryTree implements OnMouseClick {
                     if(pp.getParent() == null)
                         break;
                 }
-                readText(myRes.dirPath + "\\" + res);
+                return myRes.dirPath + "\\" + res;
             }
         }
+        return null;
     }
 }
 
