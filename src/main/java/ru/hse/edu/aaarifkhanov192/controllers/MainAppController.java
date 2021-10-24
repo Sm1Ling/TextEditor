@@ -4,6 +4,7 @@ import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
+import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.ScrollBar;
 import javafx.scene.control.TreeView;
 import javafx.scene.input.KeyCode;
@@ -13,12 +14,17 @@ import org.ahmadsoft.ropes.Rope;
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.Token;
 import org.jetbrains.skija.*;
+import ru.hse.edu.aaarifkhanov192.controllers.dirchanges.FileEvent;
+import ru.hse.edu.aaarifkhanov192.controllers.dirchanges.IFileChangeListener;
+import ru.hse.edu.aaarifkhanov192.controllers.dirchanges.WatchFileChanges;
 import ru.hse.edu.aaarifkhanov192.controllers.directorytree.DirectoryResult;
 import ru.hse.edu.aaarifkhanov192.controllers.directorytree.DirectoryTree;
 import ru.hse.edu.aaarifkhanov192.lexer.Java9Lexer;
 import ru.hse.edu.aaarifkhanov192.supportiveclasses.SettingsClass;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
@@ -62,12 +68,21 @@ public class MainAppController {
 
     @FXML
     private void initialize() {
+        WatchFileChanges wfc = new WatchFileChanges("D:\\Projects\\AndroidStudioProjects\\advanced-2021-architecture-1\\")
+                .addListener(new IFileChangeListener() {
+                    @Override
+                    public void fileEdited(FileEvent event) {
+                        System.out.println("FILE " + event.file() + "EDITED");
+                    }
+                });
+        wfc.startObserve();
         DirectoryTree dt = new DirectoryTree("D:\\Projects\\AndroidStudioProjects\\advanced-2021-architecture-1\\apikey.properties\\");
         DirectoryResult r = dt.fillRoot();
         treeView.setOnMouseClicked(new EventHandler<MouseEvent>() {
             @Override
             public void handle(MouseEvent mouseEvent) {
                 dt.getPathToTappedFile(mouseEvent, treeView);
+                wfc.stopObserve();  //Для проверки
             }
         });
         treeView.setRoot(r.rootTreeNode);
@@ -129,6 +144,7 @@ public class MainAppController {
         }
         else if(keyEvent.getCode() == KeyCode.V && keyEvent.isShortcutDown()){
             System.out.println("Here should be Ctrl V Handler");
+            gc.clearRect(0, 0, myCanvas.getWidth(), myCanvas.getHeight());
         }
         else {
             var c = keyEvent.getText();
@@ -146,10 +162,11 @@ public class MainAppController {
         Java9Lexer lexer = new Java9Lexer(new ANTLRInputStream(text.toString()));
         tokens = lexer.getAllTokens().stream().toList();
     }
+    GraphicsContext gc;
 
     // TODO Переделать
     private void render() {
-        var gc = myCanvas.getGraphicsContext2D();
+         gc = myCanvas.getGraphicsContext2D();
         gc.clearRect(0, 0, myCanvas.getWidth(), myCanvas.getHeight());
         var data = makeImageWithSkija().encodeToData().getBytes();
         javafx.scene.image.Image img = new javafx.scene.image.Image(new ByteArrayInputStream(data));

@@ -4,6 +4,7 @@ import javafx.scene.control.MultipleSelectionModel;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.input.MouseEvent;
+import ru.hse.edu.aaarifkhanov192.controllers.dirchanges.WatchFileChanges;
 
 import java.io.File;
 import java.io.FileNotFoundException;
