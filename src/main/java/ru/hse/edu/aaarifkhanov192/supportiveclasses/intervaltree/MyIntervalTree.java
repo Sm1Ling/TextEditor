@@ -1,4 +1,4 @@
-package ru.hse.edu.aaarifkhanov192.supportiveclasses;
+package ru.hse.edu.aaarifkhanov192.supportiveclasses.intervaltree;
 
 import org.antlr.v4.runtime.Token;
 
@@ -17,10 +17,18 @@ public class MyIntervalTree {
         root = new MyNode(interval, token);
     }
 
+    public MyIntervalTree(int start, int stop, Token token) {
+        this(new MyInterval(start, stop), token);
+    }
+
     public void insert(MyInterval interval, Token token) {
         root = insert(root, interval, token);
     }
 
+
+    public List<MyNode> getOverlaps(int start, int stop) {
+        return getOverlaps(new MyInterval(start, stop));
+    }
 
     public List<MyNode> getOverlaps(MyInterval interval) {
         overlappedIntervals = new ArrayList<>();
@@ -49,7 +57,6 @@ public class MyIntervalTree {
         getTreeList(root.getRight());
     }
 
-
     private void getOverlaps(MyNode node, MyInterval interval) {
         if (node == null) {
             return;
@@ -58,11 +65,8 @@ public class MyIntervalTree {
             overlappedIntervals.add(node);
         }
 
-        if (node.getLeft() != null && node.getLeft().getInterval().start() > interval.start()) {
-            getOverlaps(node.getLeft(), interval);
-        } else {
-            getOverlaps(node.getRight(), interval);
-        }
+        getOverlaps(node.getLeft(), interval);
+        getOverlaps(node.getRight(), interval);
     }
 
     private MyNode insert(MyNode node, MyInterval interval, Token token) {
@@ -78,70 +82,6 @@ public class MyIntervalTree {
         }
 
         return node;
-    }
-}
-
-record MyInterval(int start, int stop) {
-    public boolean isOverlaps(MyInterval interval) {
-        return (this.start <= interval.stop && interval.start <= this.stop);
-    }
-
-    @Override
-    public String toString() {
-        return "(" + start + ", " + stop + ')';
-    }
-}
-
-class MyNode {
-    private MyInterval interval;
-    private Token token;
-    private MyNode left;
-    private MyNode right;
-
-    public MyNode(MyInterval interval, Token token) {
-        this.setInterval(interval);
-        this.setToken(token);
-    }
-
-    @Override
-    public String toString() {
-        return "{" + getInterval() +
-                ", v: " + getToken() +
-                ", [left:" + getLeft() +
-                ", right:" + getRight() +
-                "]}";
-    }
-
-    public Token getToken() {
-        return token;
-    }
-
-    public void setToken(Token token) {
-        this.token = token;
-    }
-
-    public MyInterval getInterval() {
-        return interval;
-    }
-
-    public void setInterval(MyInterval interval) {
-        this.interval = interval;
-    }
-
-    public MyNode getLeft() {
-        return left;
-    }
-
-    public void setLeft(MyNode left) {
-        this.left = left;
-    }
-
-    public MyNode getRight() {
-        return right;
-    }
-
-    public void setRight(MyNode right) {
-        this.right = right;
     }
 }
 
