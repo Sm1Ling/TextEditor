@@ -116,7 +116,6 @@ public class MainAppController {
     }
 
     private void createPannel(String text, String path){
-
         activeCanvas = new TextCanvas();
         canWindows.add(activeCanvas);
 
@@ -212,6 +211,15 @@ public class MainAppController {
         return letters;
     }
 
+    private void resetCursor(){
+        activeCanvas.coursorY = Math.min(activeCanvas.coursorY, activeCanvas.linesLengths.size()-1);
+        activeCanvas.coursorY = Math.max(activeCanvas.coursorY,0);
+
+        activeCanvas.coursorX = Math.min(
+                activeCanvas.linesLengths.get(activeCanvas.coursorY)-1, activeCanvas.coursorX);
+        activeCanvas.coursorX = Math.max(activeCanvas.coursorX,0);
+    }
+
     //region Render Block
 
     // TODO Переделать
@@ -284,7 +292,7 @@ public class MainAppController {
                 }
 
                 activeCanvas.undoRedo.addAction(new Action(letNum-1,letNum,
-                        String.valueOf(activeCanvas.text.charAt(letNum)), true));
+                        String.valueOf(activeCanvas.text.charAt(letNum-1)), true));
                 activeCanvas.text = activeCanvas.text.delete(
                         letNum - 1, letNum);
 
@@ -298,19 +306,23 @@ public class MainAppController {
                 activeCanvas.coursorX += 4;
             }
             else if (keyEvent.getCode() == KeyCode.Z && keyEvent.isShortcutDown()){
-                Action act = activeCanvas.undoRedo.undoAction();
-                if(act.isDelete()){
-                    activeCanvas.text = activeCanvas.text.delete(act.getStart(),act.getEnd());
-                } else {
-                    activeCanvas.text = activeCanvas.text.insert(act.getStart(),act.getText());
+                if(activeCanvas.undoRedo.isCanUndo()) {
+                    Action act = activeCanvas.undoRedo.undoAction();
+                    if (act.isDelete()) {
+                        activeCanvas.text = activeCanvas.text.delete(act.getStart(), act.getEnd());
+                    } else {
+                        activeCanvas.text = activeCanvas.text.insert(act.getStart(), act.getText());
+                    }
                 }
             }
             else if (keyEvent.getCode() == KeyCode.Y && keyEvent.isShortcutDown()){
-                Action act = activeCanvas.undoRedo.redoAction();
-                if(act.isDelete()){
-                    activeCanvas.text = activeCanvas.text.delete(act.getStart(),act.getEnd());
-                } else {
-                    activeCanvas.text = activeCanvas.text.insert(act.getStart(),act.getText());
+                if(activeCanvas.undoRedo.isCanRedo()) {
+                    Action act = activeCanvas.undoRedo.redoAction();
+                    if (act.isDelete()) {
+                        activeCanvas.text = activeCanvas.text.delete(act.getStart(), act.getEnd());
+                    } else {
+                        activeCanvas.text = activeCanvas.text.insert(act.getStart(), act.getText());
+                    }
                 }
             }
             else if(keyEvent.getText().isEmpty()){
@@ -329,6 +341,7 @@ public class MainAppController {
             wordPrint.call(1);
             fileSaver.call(1);
             textAnalizer();
+            resetCursor();
             render();
         }
     };
@@ -342,14 +355,7 @@ public class MainAppController {
                     + centerX - settingsClass.startXPosition)/letterWidth); //номер буквы в строке
             activeCanvas.coursorY = (int) Math.round((mouseEvent.getY() * screenScaleY
                     + 1 + lineHeight/2 + centerY - settingsClass.startYPosition)/lineHeight); //номер строки
-
-            activeCanvas.coursorY = Math.min(activeCanvas.coursorY, activeCanvas.linesLengths.size()-1);
-            activeCanvas.coursorY = Math.max(activeCanvas.coursorY,0);
-
-            activeCanvas.coursorX = Math.min(
-                    activeCanvas.linesLengths.get(activeCanvas.coursorY)-1, activeCanvas.coursorX);
-            activeCanvas.coursorX = Math.max(activeCanvas.coursorX,0);
-
+            resetCursor();
             render();
         }
     };
