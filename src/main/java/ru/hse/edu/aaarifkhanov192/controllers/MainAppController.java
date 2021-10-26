@@ -4,23 +4,22 @@ import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
+import javafx.scene.Scene;
 import javafx.scene.control.ScrollBar;
 import javafx.scene.control.TreeView;
-import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyEvent;
-import javafx.scene.input.MouseEvent;
+import javafx.scene.input.*;
 import javafx.scene.layout.HBox;
 import javafx.stage.Screen;
 import org.ahmadsoft.ropes.Rope;
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.jetbrains.skija.*;
-import ru.hse.edu.aaarifkhanov192.supportiveclasses.Action;
-import ru.hse.edu.aaarifkhanov192.supportiveclasses.directorytree.DirectoryResult;
-import ru.hse.edu.aaarifkhanov192.supportiveclasses.directorytree.DirectoryTree;
 import ru.hse.edu.aaarifkhanov192.lexer.Java9Lexer;
+import ru.hse.edu.aaarifkhanov192.supportiveclasses.Action;
 import ru.hse.edu.aaarifkhanov192.supportiveclasses.Debouncer;
 import ru.hse.edu.aaarifkhanov192.supportiveclasses.SettingsClass;
 import ru.hse.edu.aaarifkhanov192.supportiveclasses.TextCanvas;
+import ru.hse.edu.aaarifkhanov192.supportiveclasses.directorytree.DirectoryResult;
+import ru.hse.edu.aaarifkhanov192.supportiveclasses.directorytree.DirectoryTree;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -141,7 +140,13 @@ public class MainAppController {
             vScroll.setVisible(true);
 
             //TODO Рассмотреть переопределение всех событий на поля активного окна
-            myCanvas.setOnKeyPressed(onKeyPressed);
+            myCanvas.setOnKeyTyped(onKeyTyped);
+            myCanvas.getScene().getAccelerators().put(
+                    new KeyCodeCombination(KeyCode.Z, KeyCombination.SHORTCUT_DOWN),
+                    ctrlZPressed);
+            myCanvas.getScene().getAccelerators().put(
+                    new KeyCodeCombination(KeyCode.Y, KeyCombination.SHORTCUT_DOWN),
+                    ctrlYPressed);
             myCanvas.addEventFilter(MouseEvent.MOUSE_CLICKED, canvasMouseClicked);
             vScroll.valueProperty().addListener(vScrollListener);
             hScroll.valueProperty().addListener(hScrollListener);
@@ -266,83 +271,100 @@ public class MainAppController {
 
     //endregion Render Block
 
-    //region listeners Block
+    //region handlers Block
 
-    private final EventHandler<KeyEvent> onKeyPressed = new javafx.event.EventHandler<>() {
+    private final EventHandler<KeyEvent> onKeyTyped = new javafx.event.EventHandler<>() {
         @Override
         public void handle(KeyEvent keyEvent) {
             int letNum = lettersToCursor();
-            if (keyEvent.getCode() == KeyCode.ENTER) {
-                activeCanvas.text = activeCanvas.text.insert(letNum,"\n");
-                activeCanvas.coursorX = 0;
-                activeCanvas.coursorY += 1;
-                activeCanvas.undoRedo.addAction(new Action(letNum,letNum+1,"\n", false));
-            }
-            else if (keyEvent.getCode() == KeyCode.BACK_SPACE) {
-                if(activeCanvas.coursorY == 0 && activeCanvas.coursorX == 0){
-                    return;
-                }
-
-                if (activeCanvas.coursorX != 0) {
-                    activeCanvas.coursorX -= 1;
-                }
-                else {
-                    activeCanvas.coursorX = activeCanvas.linesLengths.get(activeCanvas.coursorY - 1)-1;
-                    activeCanvas.coursorY -= 1;
-                }
-
-                activeCanvas.undoRedo.addAction(new Action(letNum-1,letNum,
-                        String.valueOf(activeCanvas.text.charAt(letNum-1)), true));
-                activeCanvas.text = activeCanvas.text.delete(
-                        letNum - 1, letNum);
-
-            }
-            else if (keyEvent.getCode() == KeyCode.V && keyEvent.isShortcutDown()) {
-                System.out.println("Here should be Ctrl V Handler");
-            }
-            else if (keyEvent.getCode() == KeyCode.TAB){
-                activeCanvas.undoRedo.addAction(new Action(letNum,letNum+4,"    ", false));
-                activeCanvas.text = activeCanvas.text.insert(letNum,"    ");
-                activeCanvas.coursorX += 4;
-            }
-            else if (keyEvent.getCode() == KeyCode.Z && keyEvent.isShortcutDown()){
-                if(activeCanvas.undoRedo.isCanUndo()) {
-                    Action act = activeCanvas.undoRedo.undoAction();
-                    if (act.isDelete()) {
-                        activeCanvas.text = activeCanvas.text.delete(act.getStart(), act.getEnd());
-                    } else {
-                        activeCanvas.text = activeCanvas.text.insert(act.getStart(), act.getText());
+            if(!keyEvent.isShortcutDown()) {
+                switch (keyEvent.getCharacter()) {
+                    case "\r" -> {
+                        activeCanvas.text = activeCanvas.text.insert(letNum, "\n");
+                        activeCanvas.coursorX = 0;
+                        activeCanvas.coursorY += 1;
+                        activeCanvas.undoRedo.addAction(new Action(letNum, letNum + 1, "\n", false));
+                    }
+                    case "\b" -> {
+                        if (activeCanvas.coursorY == 0 && activeCanvas.coursorX == 0) {
+                            return;
+                        }
+                        if (activeCanvas.coursorX != 0) {
+                            activeCanvas.coursorX -= 1;
+                        } else {
+                            activeCanvas.coursorX = activeCanvas.linesLengths.get(activeCanvas.coursorY - 1) - 1;
+                            activeCanvas.coursorY -= 1;
+                        }
+                        activeCanvas.undoRedo.addAction(new Action(letNum - 1, letNum,
+                                String.valueOf(activeCanvas.text.charAt(letNum - 1)), true));
+                        activeCanvas.text = activeCanvas.text.delete(
+                                letNum - 1, letNum);
+                    }
+                    case "\t" -> {
+                        activeCanvas.undoRedo.addAction(new Action(letNum, letNum + 4, "    ", false));
+                        activeCanvas.text = activeCanvas.text.insert(letNum, "    ");
+                        activeCanvas.coursorX += 4;
+                    }
+                    case "" -> {
+                        return;
+                    }
+                    default -> {
+                        var c = keyEvent.getCharacter();
+                        if (keyEvent.isShiftDown()) {
+                            c = c.toUpperCase(Locale.ROOT);
+                        }
+                        activeCanvas.undoRedo.addAction(new Action(letNum, letNum + 1, c, false));
+                        activeCanvas.text = activeCanvas.text.insert(letNum, c);
+                        activeCanvas.coursorX += 1;
                     }
                 }
+
+                wordPrint.call(1);
+                fileSaver.call(1);
+                textAnalizer();
+                resetCursor();
+                render();
             }
-            else if (keyEvent.getCode() == KeyCode.Y && keyEvent.isShortcutDown()){
-                if(activeCanvas.undoRedo.isCanRedo()) {
-                    Action act = activeCanvas.undoRedo.redoAction();
-                    if (act.isDelete()) {
-                        activeCanvas.text = activeCanvas.text.delete(act.getStart(), act.getEnd());
-                    } else {
-                        activeCanvas.text = activeCanvas.text.insert(act.getStart(), act.getText());
-                    }
+        }
+    };
+
+    private final Runnable ctrlYPressed = new Runnable(){
+        @Override
+        public void run() {
+            if (activeCanvas.undoRedo.isCanRedo()) {
+                Action act = activeCanvas.undoRedo.redoAction();
+                if (act.isDelete()) {
+                    activeCanvas.text = activeCanvas.text.delete(act.getStart(), act.getEnd());
+                } else {
+                    activeCanvas.text = activeCanvas.text.insert(act.getStart(), act.getText());
                 }
-            }
-            else if(keyEvent.getText().isEmpty()){
-                return;
-            }
-            else {
-                var c = keyEvent.getText();
-                if (keyEvent.isShiftDown()) {
-                    c = c.toUpperCase(Locale.ROOT);
-                }
-                activeCanvas.undoRedo.addAction(new Action(letNum,letNum+1,c, false));
-                activeCanvas.text = activeCanvas.text.insert(letNum,c);
-                activeCanvas.coursorX += 1;
+                wordPrint.call(1);
+                fileSaver.call(1);
+                textAnalizer();
+                resetCursor();
+                render();
             }
 
-            wordPrint.call(1);
-            fileSaver.call(1);
-            textAnalizer();
-            resetCursor();
-            render();
+        }
+    };
+
+    private final Runnable ctrlZPressed = new Runnable(){
+        @Override
+        public void run() {
+            if (activeCanvas.undoRedo.isCanUndo()) {
+                Action act = activeCanvas.undoRedo.undoAction();
+                if (act.isDelete()) {
+                    activeCanvas.text = activeCanvas.text.delete(act.getStart(), act.getEnd());
+                } else {
+                    activeCanvas.text = activeCanvas.text.insert(act.getStart(), act.getText());
+                }
+                wordPrint.call(1);
+                fileSaver.call(1);
+                textAnalizer();
+                resetCursor();
+                render();
+            }
+
         }
     };
 

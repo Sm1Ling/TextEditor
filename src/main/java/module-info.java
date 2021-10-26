@@ -12,6 +12,7 @@ module ru.hse.edu.aaarifkhanov192.TextEditor {
     exports ru.hse.edu.aaarifkhanov192;
     exports ru.hse.edu.aaarifkhanov192.controllers;
     exports ru.hse.edu.aaarifkhanov192.supportiveclasses;
+    exports ru.hse.edu.aaarifkhanov192.supportiveclasses.directorytree;
 
     opens ru.hse.edu.aaarifkhanov192.supportiveclasses to javafx.fxml;
     opens ru.hse.edu.aaarifkhanov192 to javafx.fxml;
