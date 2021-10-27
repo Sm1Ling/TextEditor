@@ -21,10 +21,10 @@ import ru.hse.edu.aaarifkhanov192.controllers.directorytree.DirectoryResult;
 import ru.hse.edu.aaarifkhanov192.controllers.directorytree.DirectoryTree;
 import ru.hse.edu.aaarifkhanov192.lexer.Java9Lexer;
 import ru.hse.edu.aaarifkhanov192.supportiveclasses.SettingsClass;
+import ru.hse.edu.aaarifkhanov192.supportiveclasses.intervaltree.MyIntervalTree;
+import ru.hse.edu.aaarifkhanov192.supportiveclasses.intervaltree.MyNode;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
@@ -41,14 +41,17 @@ public class MainAppController {
     private ScrollBar vScroll;
 
 
-    private Rope text = Rope.BUILDER.build("private void render(Scene scene) {\n" +
-            "        var canvas = (javafx.scene.canvas.Canvas) scene.getRoot().lookup(\"#myCanvas\");\n" +
-            "        var gc = canvas.getGraphicsContext2D();\n" +
-            "        gc.clearRect(0, 0, 320, 240);\n" +
-            "        var data = makeImageWithSkija().encodeToData().getBytes();\n" +
-            "        javafx.scene.image.Image img = new javafx.scene.image.Image(new ByteArrayInputStream(data));\n" +
-            "        gc.drawImage(img, 0, 0);\n" +
-            "    }");
+    private Rope text = Rope.BUILDER.build("");
+
+
+    /* private void render(Scene scene)/*comment {\n" +
+        "        var canvas = (javafx.scene.canvas.Canvas) scene.getRoot().lookup(\"#myCanvas\");\n" +
+                "        var gc = canvas.getGraphicsContext2D();\n" +
+                "        gc.clearRect(0, 0, 320, 240);\n" +
+                "        var data = makeImageWithSkija().encodeToData().getBytes();\n" +
+                "        javafx.scene.image.Image img = new javafx.scene.image.Image(new ByteArrayInputStream(data));\n" +
+                "        gc.drawImage(img, 0, 0);\n" +
+                "    } */
 
     private List<? extends Token> tokens;
 
@@ -65,9 +68,11 @@ public class MainAppController {
     float lineHeight;
 
 
+    private MyIntervalTree<Token> mit;
 
     @FXML
     private void initialize() {
+        mit = new MyIntervalTree<>();
         WatchFileChanges wfc = new WatchFileChanges("D:\\Projects\\AndroidStudioProjects\\advanced-2021-architecture-1\\")
                 .addListener(new IFileChangeListener() {
                     @Override
@@ -93,13 +98,13 @@ public class MainAppController {
         //TODO Сделать норм ширину буквы (8 = 7ширина буквы + 1 как пропуск)
         letterWidth = 8;
 
-        maxLineLength = Math.round(((float)myCanvas.getWidth() - settingsClass.startXPosition)/letterWidth);
-        linesCount = Math.round((float)myCanvas.getHeight()/lineHeight);
+        maxLineLength = Math.round(((float) myCanvas.getWidth() - settingsClass.startXPosition) / letterWidth);
+        linesCount = Math.round((float) myCanvas.getHeight() / lineHeight);
         System.out.println(maxLineLength);
         System.out.println(linesCount);
 
 
-        runLexer();
+        runLexer(0, 0);
         render();
 
         vScroll.setMin(0);
@@ -114,12 +119,11 @@ public class MainAppController {
         centerY = 0;
 
 
-
         vScroll.valueProperty().addListener(new ChangeListener<Number>() {
             public void changed(ObservableValue<? extends Number> ov,
                                 Number old_val, Number new_val) {
-                centerY = (float)(new_val.doubleValue()
-                        *(vScroll.getMax() - myCanvas.getHeight())/vScroll.getMax());
+                centerY = (float) (new_val.doubleValue()
+                        * (vScroll.getMax() - myCanvas.getHeight()) / vScroll.getMax());
                 render();
             }
         });
@@ -127,8 +131,8 @@ public class MainAppController {
         hScroll.valueProperty().addListener(new ChangeListener<Number>() {
             public void changed(ObservableValue<? extends Number> ov,
                                 Number old_val, Number new_val) {
-                centerX = (float)(new_val.doubleValue()
-                        * (hScroll.getMax() - myCanvas.getWidth())/hScroll.getMax());
+                centerX = (float) (new_val.doubleValue()
+                        * (hScroll.getMax() - myCanvas.getWidth()) / hScroll.getMax());
                 render();
             }
         });
@@ -138,35 +142,37 @@ public class MainAppController {
     private void onKeyPressed(KeyEvent keyEvent) {
         if (keyEvent.getCode() == KeyCode.ENTER) {
             text = text.append("\n");
-        }
-        else if (keyEvent.getCode() == KeyCode.BACK_SPACE){
-            text = text.delete(text.length()-1,text.length());
-        }
-        else if(keyEvent.getCode() == KeyCode.V && keyEvent.isShortcutDown()){
+        } else if (keyEvent.getCode() == KeyCode.BACK_SPACE) {
+            text = text.delete(text.length() - 1, text.length());
+        } else if (keyEvent.getCode() == KeyCode.V && keyEvent.isShortcutDown()) {
             System.out.println("Here should be Ctrl V Handler");
-            gc.clearRect(0, 0, myCanvas.getWidth(), myCanvas.getHeight());
-        }
-        else {
+            runLexer(0,text.length());
+//            render();
+        } else {
             var c = keyEvent.getText();
-            if(keyEvent.isShiftDown()){
+            if (keyEvent.isShiftDown()) {
                 c = c.toUpperCase(Locale.ROOT);
             }
             text = text.append(c);
         }
 
-        runLexer();
+//        runLexer();
         render();
     }
 
-    private void runLexer() {
-        Java9Lexer lexer = new Java9Lexer(new ANTLRInputStream(text.toString()));
+    private void runLexer(int start, int stop) {
+        Java9Lexer lexer = new Java9Lexer(new ANTLRInputStream(text.subSequence(start, stop).toString()));
         tokens = lexer.getAllTokens().stream().toList();
+        for (Token t : tokens) {
+            mit.insert(t.getStartIndex(), t.getStopIndex(), t);
+        }
     }
+
     GraphicsContext gc;
 
     // TODO Переделать
     private void render() {
-         gc = myCanvas.getGraphicsContext2D();
+        gc = myCanvas.getGraphicsContext2D();
         gc.clearRect(0, 0, myCanvas.getWidth(), myCanvas.getHeight());
         var data = makeImageWithSkija().encodeToData().getBytes();
         javafx.scene.image.Image img = new javafx.scene.image.Image(new ByteArrayInputStream(data));
@@ -177,7 +183,7 @@ public class MainAppController {
 
     //TODO Переделать с учетом конкретной области
     private Image makeImageWithSkija() {
-        Surface surface = Surface.makeRasterN32Premul((int)myCanvas.getWidth(), (int)myCanvas.getHeight());
+        Surface surface = Surface.makeRasterN32Premul((int) myCanvas.getWidth(), (int) myCanvas.getHeight());
         Canvas canvas = surface.getCanvas();
 
         Paint paint = settingsClass.mainColor;
@@ -192,48 +198,47 @@ public class MainAppController {
 
         var font = settingsClass.mainFont;
         for (int i = 0; i < text.length(); i++) {
-            //Token currToken = null;
-            //for (var token : tokens) {
-            //    if (token.getStartIndex() <= i && token.getStopIndex() >= i) {
-            //        currToken = token;
-            //        break;
-            //    }
-            //}
-//
-            //if (currToken != null) {
-            //    switch (currToken.getType()) {
-            //        case 1 -> paint.setColor(0xAABB0000);
-            //        case 2 -> paint.setColor(0xBBBBCC00);
-            //        case 3 -> paint.setColor(0x55551100);
-            //        case 4 -> paint.setColor(0x88683400);
-            //    }
-            //}
+            List<MyNode<Token>> tk = mit.getIntervals(i);
+            if (tk != null && !tk.isEmpty()) {
+                System.out.println(tk.get(0).getInterval());
+                int tType = tk.get(0).getToken().getType();
+                if (tType >= 1 && tType <= 61 || tType == 64 || tType == 67 || tType == 74 || tType == 75) {
+                    paint.setColor(Color.makeRGB(204, 120, 50));
+                } else if (tType == 117 || tType == 118) {
+                    paint.setColor(Color.makeRGB(128, 128, 128));
+                } else if (tType == 62) {
+                    paint.setColor(Color.makeRGB(104, 151, 187));
+                } else if (tType == 66) {
+                    paint.setColor(Color.makeRGB(106, 135, 89));
+                } else {
+                    paint.setColor(Color.makeRGB(169, 183, 198));
+                }
+            }
 
             char c = text.charAt(i);
             if (c != '\n') {
                 var textLine = TextLine.make(String.valueOf(c), font);
-                canvas.drawTextLine(textLine, (float)x, (float)y, paint);
+                canvas.drawTextLine(textLine, (float) x, (float) y, paint);
                 x += textLine.getWidth() + 1;
                 charIter += 1;
-                mchar = Math.max(mchar,charIter);
-            }
-            else {
+                mchar = Math.max(mchar, charIter);
+            } else {
                 y += -font.getMetrics().getAscent() + font.getMetrics().getDescent() + font.getMetrics().getLeading();
-                x = settingsClass.startXPosition  - centerX;
+                x = settingsClass.startXPosition - centerX;
                 charIter = 0;
                 lineNum += 1;
             }
 
-            vScroll.setMax(Math.max(linesCount,lineNum)*lineHeight);
-            hScroll.setMax(letterWidth*Math.max(maxLineLength,mchar)+settingsClass.startXPosition);
+            vScroll.setMax(Math.max(linesCount, lineNum) * lineHeight);
+            hScroll.setMax(letterWidth * Math.max(maxLineLength, mchar) + settingsClass.startXPosition);
 
         }
 
-        paint = new Paint().setColor(0xFF00FF00);
-        canvas.drawLine(0,0,(float)myCanvas.getWidth(),0, paint);
-        canvas.drawLine(0,0,0,(float)myCanvas.getHeight(), paint);
-        canvas.drawLine((float)myCanvas.getWidth(),0,(float)myCanvas.getWidth(),(float)myCanvas.getHeight(), paint);
-        canvas.drawLine(0,(float)myCanvas.getHeight(),(float)myCanvas.getWidth(),(float)myCanvas.getHeight(), paint);
+        paint = new Paint().setColor(0x2B2B2B);
+        canvas.drawLine(0, 0, (float) myCanvas.getWidth(), 0, paint);
+        canvas.drawLine(0, 0, 0, (float) myCanvas.getHeight(), paint);
+        canvas.drawLine((float) myCanvas.getWidth(), 0, (float) myCanvas.getWidth(), (float) myCanvas.getHeight(), paint);
+        canvas.drawLine(0, (float) myCanvas.getHeight(), (float) myCanvas.getWidth(), (float) myCanvas.getHeight(), paint);
 
         return surface.makeImageSnapshot();
     }
