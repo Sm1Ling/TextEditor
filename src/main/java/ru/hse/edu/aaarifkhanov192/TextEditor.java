@@ -4,9 +4,7 @@ import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
-import org.antlr.v4.runtime.Token;
-import ru.hse.edu.aaarifkhanov192.supportiveclasses.intervaltree.MyInterval;
-import ru.hse.edu.aaarifkhanov192.supportiveclasses.intervaltree.MyIntervalTree;
+
 
 import java.io.IOException;
 

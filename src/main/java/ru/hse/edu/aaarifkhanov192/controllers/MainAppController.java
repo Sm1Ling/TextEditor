@@ -3,6 +3,7 @@ package ru.hse.edu.aaarifkhanov192.controllers;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.event.EventHandler;
+import javafx.event.EventType;
 import javafx.fxml.FXML;
 import javafx.scene.control.ScrollBar;
 import javafx.scene.control.TreeView;
@@ -10,15 +11,17 @@ import javafx.scene.input.*;
 import javafx.scene.layout.HBox;
 import javafx.stage.Screen;
 import org.ahmadsoft.ropes.Rope;
-import org.antlr.v4.runtime.ANTLRInputStream;
+import org.antlr.v4.runtime.*;
+import org.antlr.v4.runtime.misc.Interval;
 import org.jetbrains.skija.*;
-import ru.hse.edu.aaarifkhanov192.lexer.Java9Lexer;
-import ru.hse.edu.aaarifkhanov192.supportiveclasses.Action;
-import ru.hse.edu.aaarifkhanov192.supportiveclasses.Debouncer;
-import ru.hse.edu.aaarifkhanov192.supportiveclasses.SettingsClass;
-import ru.hse.edu.aaarifkhanov192.supportiveclasses.TextCanvas;
+import ru.hse.edu.aaarifkhanov192.lexer.PascalBaseListener;
+import ru.hse.edu.aaarifkhanov192.lexer.PascalLexer;
+import ru.hse.edu.aaarifkhanov192.lexer.PascalParser;
+import ru.hse.edu.aaarifkhanov192.supportiveclasses.*;
 import ru.hse.edu.aaarifkhanov192.supportiveclasses.directorytree.DirectoryResult;
 import ru.hse.edu.aaarifkhanov192.supportiveclasses.directorytree.DirectoryTree;
+import ru.hse.edu.aaarifkhanov192.supportiveclasses.intervaltree.MyInterval;
+import ru.hse.edu.aaarifkhanov192.supportiveclasses.intervaltree.MyIntervalTree;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -70,8 +73,6 @@ public class MainAppController {
     private final Debouncer<Integer> wordPrint = new Debouncer<Integer>(this::relex, 500);
     private final Debouncer<Integer> fileSaver = new Debouncer<>(this::saveFile, 30000);
 
-    //TODO Разобраться с CtrlZ CtrlV
-    //TODO Ало, когда буквы красить будем (лексер, аст, токены, интервалТри с цветами)
     //TODO Разобраться с добавлением таб окон
     //TODO Возможно присобачить выделение
     //TODO Однажды тут будут тесты
@@ -109,6 +110,7 @@ public class MainAppController {
                 createPannel(dt.readText(path), path);
             }
         });
+
         treeView.setRoot(r.rootTreeNode);
     }
 
@@ -137,8 +139,8 @@ public class MainAppController {
             hScroll.setVisible(true);
             vScroll.setVisible(true);
 
-            //TODO Рассмотреть переопределение всех событий на поля активного окна
             myCanvas.setOnKeyTyped(onKeyTyped);
+            myCanvas.setOnKeyPressed(onKeyPressed);
             myCanvas.getScene().getAccelerators().put(
                     new KeyCodeCombination(KeyCode.Z, KeyCombination.SHORTCUT_DOWN),
                     ctrlZPressed);
@@ -174,9 +176,31 @@ public class MainAppController {
     }
 
     private void runLexer() {
-        Java9Lexer lexer = new Java9Lexer(new ANTLRInputStream(activeCanvas.text.toString()));
-        activeCanvas.tokens = lexer.getAllTokens().stream().toList();
+
+        PascalLexer lexer = new PascalLexer(new ANTLRInputStream(activeCanvas.text.toString()));
+        activeCanvas.colorTree = new MyIntervalTree<>();
+        activeCanvas.highlight = new MyIntervalTree<>();
+        Thread tokenThread = new Thread(() -> TokenFiller.refillColorTree(lexer.getAllTokens(),activeCanvas.colorTree));
+
+        try {
+            tokenThread.start();
+            //не сказал бы что есть нужда в больших стуктурах многопоточности. МБ стоит перекроить метод чтоб не было завала
+            //lexer.reset();
+            //var parser = new PascalParser(new CommonTokenStream(lexer));
+            //parser.addParseListener(new PascalBaseListener(activeCanvas.highlight));
+            //parser.program();
+
+            tokenThread.join();
+        } catch (InterruptedException e){
+            e.printStackTrace();
+        }
+        finally{
+            var tkn = activeCanvas.colorTree.getTree();
+            activeCanvas.editChars = 0;
+            activeCanvas.startEditChars = -1;
+        }
     }
+
 
 
     private void textAnalizer() {
@@ -187,7 +211,8 @@ public class MainAppController {
         for (Character character : activeCanvas.text) {
             if (character != '\n') {
                 charIter += 1;
-            } else {
+            }
+            else {
                 activeCanvas.linesLengths.add(charIter + 1);
                 charIter = 0;
             }
@@ -221,9 +246,63 @@ public class MainAppController {
         activeCanvas.coursorX = Math.max(activeCanvas.coursorX, 0);
     }
 
+    private boolean checkChar(char ch, int letNum, boolean isShiftDown){
+        switch (ch) {
+            case '\r' -> {
+                activeCanvas.text = activeCanvas.text.insert(letNum, "\n");
+                activeCanvas.coursorX = 0;
+                activeCanvas.coursorY += 1;
+                activeCanvas.undoRedo.addAction(new Action(letNum, letNum + 1, "\n", false));
+                activeCanvas.editChars += 1;
+            }
+            case '\b' -> {
+                if (activeCanvas.coursorY == 0 && activeCanvas.coursorX == 0) {
+                    return false;
+                }
+                if (activeCanvas.coursorX != 0) {
+                    activeCanvas.coursorX -= 1;
+                } else {
+                    activeCanvas.coursorX = activeCanvas.linesLengths.get(activeCanvas.coursorY - 1) - 1;
+                    activeCanvas.coursorY -= 1;
+                }
+                activeCanvas.undoRedo.addAction(new Action(letNum - 1, letNum,
+                        String.valueOf(activeCanvas.text.charAt(letNum - 1)), true));
+                activeCanvas.text = activeCanvas.text.delete(
+                        letNum - 1, letNum);
+                activeCanvas.editChars -= 1;
+            }
+            case (char)127-> {
+                if(letNum == activeCanvas.text.length()-1){
+                    return false;
+                }
+                activeCanvas.undoRedo.addAction(new Action(letNum, letNum+1,
+                        String.valueOf(activeCanvas.text.charAt(letNum)), true));
+                activeCanvas.text = activeCanvas.text.delete(
+                        letNum, letNum+1);
+                activeCanvas.editChars -= 1;
+            }
+            case '\t' -> {
+                activeCanvas.undoRedo.addAction(new Action(letNum, letNum + 4, "    ", false));
+                activeCanvas.text = activeCanvas.text.insert(letNum, "    ");
+                activeCanvas.coursorX += 4;
+                activeCanvas.editChars += 4;
+            }
+            default -> {
+                String c = String.valueOf(ch);
+                if (isShiftDown) {
+                    c = c.toUpperCase(Locale.ROOT);
+                }
+                activeCanvas.undoRedo.addAction(new Action(letNum, letNum + 1, c, false));
+                activeCanvas.text = activeCanvas.text.insert(letNum, c);
+                activeCanvas.coursorX += 1;
+                activeCanvas.editChars += 1;
+            }
+        }
+        return true;
+    }
+
     //region Render Block
 
-    // TODO Переделать
     private void render() {
         var data = Objects.requireNonNull(makeImage().encodeToData()).getBytes();
         javafx.scene.image.Image img = new javafx.scene.image.Image(new ByteArrayInputStream(data));
@@ -235,18 +314,38 @@ public class MainAppController {
         Surface surface = Surface.makeRasterN32Premul((int) (screenWidth), (int) (screenHeight));
         Canvas canvas = surface.getCanvas();
 
-        Paint paint = settingsClass.mainColor;
-
         float x = settingsClass.startXPosition - centerX;
         float y = settingsClass.startYPosition - centerY;
 
         var font = settingsClass.mainFont;
         int i = 0;
 
+        int lettersToCur = lettersToCursor()-activeCanvas.editChars;
+
+        var chosenInterval = activeCanvas.colorTree.getIntervals(lettersToCur);
+        if(!chosenInterval.isEmpty() && activeCanvas.startEditChars != -1){
+            activeCanvas.colorTree.delete(chosenInterval.get(0).getInterval()); // избавляюсь от цвета посреди слова
+        }
+
+        //TODO Доделать  корректный сдвиг цветов
+        int temp = Math.min(activeCanvas.startEditChars, activeCanvas.startEditChars + activeCanvas.editChars);
+        int holder = Math.max(0,activeCanvas.editChars);
+
+        //var tree = activeCanvas.colorTree.getTree();
+        //int treeI = 0;
         for (Character character : activeCanvas.text) {
             if (character != '\n') {
                 var textLine = TextLine.make(String.valueOf(character), font);
-                canvas.drawTextLine(textLine, x, y, paint);
+                //region неэффективный способ
+                 if(temp == -1 || i <= temp) {
+                     drawText(i,x,y,canvas,textLine);
+                 }
+                 else {
+                     drawText(i - activeCanvas.editChars + holder,x,y,canvas,textLine);
+                     holder--;
+                     holder = Math.max(holder, 0);
+                 }
+                //endregion
                 x += textLine.getWidth();
             } else {
                 y += lineHeight;
@@ -264,6 +363,20 @@ public class MainAppController {
         return surface.makeImageSnapshot();
     }
 
+    private void drawText(int i, float x, float y, Canvas canvas, TextLine textLine){
+        var intervals =  activeCanvas.colorTree
+                .getIntervals(i);
+
+        if(intervals.isEmpty()){
+            canvas.drawTextLine(textLine, x, y,
+                    settingsClass.mainColor);
+        }
+        else {
+            canvas.drawTextLine(textLine, x, y,
+                    settingsClass.colorMap.get(intervals.get(0).getToken()));
+        }
+    }
+
     //endregion Render Block
 
     //region handlers Block
@@ -272,16 +385,40 @@ public class MainAppController {
         @Override
         public void handle(KeyEvent keyEvent) {
             int letNum = lettersToCursor();
-            if (!keyEvent.isShortcutDown()) {
-                switch (keyEvent.getCharacter()) {
-                    case "\r" -> {
-                        activeCanvas.text = activeCanvas.text.insert(letNum, "\n");
-                        activeCanvas.coursorX = 0;
-                        activeCanvas.coursorY += 1;
-                        activeCanvas.undoRedo.addAction(new Action(letNum, letNum + 1, "\n", false));
+                if (!keyEvent.isShortcutDown()) {
+
+                    if (activeCanvas.startEditChars == -1) {
+                        activeCanvas.startEditChars = letNum;
                     }
-                    case "\b" -> {
-                        if (activeCanvas.coursorY == 0 && activeCanvas.coursorX == 0) {
+
+                    if(keyEvent.getCharacter().isEmpty()){
+                        return;
+                    }
+
+                    String line = keyEvent.getCharacter();
+                    for (var w: line.toCharArray()) {
+                        if(!checkChar(w,letNum, keyEvent.isShiftDown())){
+                            return;
+                        }
+                    }
+
+                    wordPrint.call(1);
+                    fileSaver.call(1);
+                    textAnalizer();
+                    resetCursor();
+                    render();
+                }
+            }
+
+    };
+
+    private final EventHandler<KeyEvent> onKeyPressed = new EventHandler<KeyEvent>() {
+        @Override
+        public void handle(KeyEvent keyEvent) {
+            if(keyEvent.getCode().isArrowKey()){
+                switch(keyEvent.getCode()){
+                    case LEFT -> {
+                        if(activeCanvas.coursorX == 0 && activeCanvas.coursorY == 0){
                             return;
                         }
                         if (activeCanvas.coursorX != 0) {
@@ -290,33 +427,37 @@ public class MainAppController {
                             activeCanvas.coursorX = activeCanvas.linesLengths.get(activeCanvas.coursorY - 1) - 1;
                             activeCanvas.coursorY -= 1;
                         }
-                        activeCanvas.undoRedo.addAction(new Action(letNum - 1, letNum,
-                                String.valueOf(activeCanvas.text.charAt(letNum - 1)), true));
-                        activeCanvas.text = activeCanvas.text.delete(
-                                letNum - 1, letNum);
                     }
-                    case "\t" -> {
-                        activeCanvas.undoRedo.addAction(new Action(letNum, letNum + 4, "    ", false));
-                        activeCanvas.text = activeCanvas.text.insert(letNum, "    ");
-                        activeCanvas.coursorX += 4;
-                    }
-                    case "" -> {
-                        return;
-                    }
-                    default -> {
-                        var c = keyEvent.getCharacter();
-                        if (keyEvent.isShiftDown()) {
-                            c = c.toUpperCase(Locale.ROOT);
+                    case RIGHT -> {
+                        if (activeCanvas.coursorX == activeCanvas.linesLengths.get(activeCanvas.coursorY)-1) {
+                            if(activeCanvas.coursorY == activeCanvas.linesLengths.size()-1){
+                                return;
+                            }
+                            else{
+                                activeCanvas.coursorY += 1;
+                                activeCanvas.coursorX = 0;
+                            }
                         }
-                        activeCanvas.undoRedo.addAction(new Action(letNum, letNum + 1, c, false));
-                        activeCanvas.text = activeCanvas.text.insert(letNum, c);
-                        activeCanvas.coursorX += 1;
+                        else {
+                            activeCanvas.coursorX += 1;
+                        }
                     }
+                    case DOWN -> {
+                        if(activeCanvas.coursorY == 0){
+                            return;
+                        }else {
+                            activeCanvas.coursorY += 1;
+                        }
+                    }
+                    case UP -> {
+                        if(activeCanvas.coursorY == activeCanvas.linesLengths.size()-1){
+                            return;
+                        }else {
+                            activeCanvas.coursorY -= 1;
+                        }
+                    }
+                    default -> {return;}
                 }
-
-                wordPrint.call(1);
-                fileSaver.call(1);
-                textAnalizer();
                 resetCursor();
                 render();
             }
@@ -328,10 +469,17 @@ public class MainAppController {
         public void run() {
             if (activeCanvas.undoRedo.isCanRedo()) {
                 Action act = activeCanvas.undoRedo.redoAction();
+
+                if(activeCanvas.startEditChars == -1){
+                    activeCanvas.startEditChars = act.getStart();
+                }
+
                 if (act.isDelete()) {
                     activeCanvas.text = activeCanvas.text.delete(act.getStart(), act.getEnd());
+                    activeCanvas.editChars -= 1;
                 } else {
                     activeCanvas.text = activeCanvas.text.insert(act.getStart(), act.getText());
+                    activeCanvas.editChars += 1;
                 }
                 wordPrint.call(1);
                 fileSaver.call(1);
@@ -348,10 +496,17 @@ public class MainAppController {
         public void run() {
             if (activeCanvas.undoRedo.isCanUndo()) {
                 Action act = activeCanvas.undoRedo.undoAction();
+
+                if(activeCanvas.startEditChars == -1){
+                    activeCanvas.startEditChars = act.getStart();
+                }
+
                 if (act.isDelete()) {
                     activeCanvas.text = activeCanvas.text.delete(act.getStart(), act.getEnd());
+                    activeCanvas.editChars -= 1;
                 } else {
                     activeCanvas.text = activeCanvas.text.insert(act.getStart(), act.getText());
+                    activeCanvas.editChars += 1;
                 }
                 wordPrint.call(1);
                 fileSaver.call(1);
@@ -372,6 +527,9 @@ public class MainAppController {
                     + centerX - settingsClass.startXPosition) / letterWidth); //номер буквы в строке
             activeCanvas.coursorY = (int) Math.round((mouseEvent.getY() * screenScaleY
                     + 1 + lineHeight / 2 + centerY - settingsClass.startYPosition) / lineHeight); //номер строки
+            if(activeCanvas.startEditChars != -1){
+                runLexer();
+            }
             resetCursor();
             render();
         }
