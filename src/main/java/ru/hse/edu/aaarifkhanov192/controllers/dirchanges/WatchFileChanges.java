@@ -19,6 +19,10 @@ public class WatchFileChanges {
     private final String strPath;
     private final File file;
 
+    /**
+     * Constructor.
+     * @param path Path to root directory of the file.
+     */
     public WatchFileChanges(String path) {
         this.strPath = path;
         this.file = new File(path);

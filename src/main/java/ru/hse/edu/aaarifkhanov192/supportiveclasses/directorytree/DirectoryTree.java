@@ -1,10 +1,12 @@
-package ru.hse.edu.aaarifkhanov192.controllers.directorytree;
+package ru.hse.edu.aaarifkhanov192.supportiveclasses.directorytree;
 
 import javafx.scene.control.MultipleSelectionModel;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.input.MouseEvent;
 import ru.hse.edu.aaarifkhanov192.controllers.dirchanges.WatchFileChanges;
+import ru.hse.edu.aaarifkhanov192.supportiveclasses.directorytree.DirectoryResult;
+import ru.hse.edu.aaarifkhanov192.supportiveclasses.directorytree.OnMouseClick;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -105,19 +107,21 @@ public class DirectoryTree implements OnMouseClick {
             //TODO Обработка дабл клика
             MultipleSelectionModel<TreeItem<String>> sm = treeView.getSelectionModel();
             TreeItem<String> pp = sm.getSelectedItem();
-            boolean isFile = pp.getValue().contains(".") && (pp.getChildren() == null
-                    || pp.getChildren().isEmpty());
+            if (pp != null) {
+                boolean isFile = pp.getValue().contains(".") && (pp.getChildren() == null
+                        || pp.getChildren().isEmpty());
 
-            if (isFile) {
-                StringBuilder res = new StringBuilder();
-                while (pp != null) {
-                    res.insert(0, pp.getValue() + File.separator);
-                    pp = pp.getParent();
-                    //Чтобы не дошел до корня, чтобы не было пути <root>/<root>/file.txt/
-                    if(pp.getParent() == null)
-                        break;
+                if (isFile) {
+                    StringBuilder res = new StringBuilder();
+                    while (pp != null) {
+                        res.insert(0, pp.getValue() + File.separator);
+                        pp = pp.getParent();
+                        //Чтобы не дошел до корня, чтобы не было пути <root>/<root>/file.txt/
+                        if (pp.getParent() == null)
+                            break;
+                    }
+                    return myRes.dirPath + File.separator + res;
                 }
-                return myRes.dirPath + File.separator + res;
             }
         }
         return null;
