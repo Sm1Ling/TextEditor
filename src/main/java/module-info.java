@@ -18,4 +18,6 @@ module ru.hse.edu.aaarifkhanov192.TextEditor {
     opens ru.hse.edu.aaarifkhanov192.controllers to javafx.fxml;
     exports ru.hse.edu.aaarifkhanov192.supportiveclasses.intervaltree;
     opens ru.hse.edu.aaarifkhanov192.supportiveclasses.intervaltree to javafx.fxml;
+    exports ru.hse.edu.aaarifkhanov192.supportiveclasses.viewclistener;
+    opens ru.hse.edu.aaarifkhanov192.supportiveclasses.viewclistener to javafx.fxml;
 }

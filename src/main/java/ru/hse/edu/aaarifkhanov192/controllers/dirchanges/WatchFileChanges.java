@@ -1,5 +1,7 @@
 package ru.hse.edu.aaarifkhanov192.controllers.dirchanges;
 
+import javafx.concurrent.Task;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
@@ -21,6 +23,7 @@ public class WatchFileChanges {
 
     /**
      * Constructor.
+     *
      * @param path Path to root directory of the file.
      */
     public WatchFileChanges(String path) {
@@ -28,11 +31,12 @@ public class WatchFileChanges {
         this.file = new File(path);
     }
 
+    //    private static Service<Void> service;
     public void startObserve() {
         if (file.exists()) {
-            Runnable run = new Runnable() {
+            Task<Void> task = new Task<>() {
                 @Override
-                public void run() {
+                protected Void call() throws Exception {
                     try (WatchService ws = FileSystems.getDefault().newWatchService()) {
                         Paths.get(file.getAbsolutePath()).register(ws, ENTRY_MODIFY);
                         services.add(ws);
@@ -54,10 +58,12 @@ public class WatchFileChanges {
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
+
+                    return null;
                 }
             };
 
-            thread = new Thread(run);
+            thread = new Thread(task);
             thread.setDaemon(true);
             thread.start();
         }
@@ -68,7 +74,7 @@ public class WatchFileChanges {
             try {
                 ws.close();
             } catch (IOException e) {
-                System.out.println(e.getMessage());;
+                System.out.println(e.getMessage());
             }
         }
         thread.interrupt();
@@ -77,8 +83,9 @@ public class WatchFileChanges {
     private void notifyListeners(WatchEvent.Kind<?> kind, File file) {
         if (kind == ENTRY_MODIFY) {
             FileEvent e = new FileEvent(file);
-            for (IFileChangeListener l : listeners)
+            for (IFileChangeListener l : listeners) {
                 l.fileEdited(e);
+            }
         }
     }
 
@@ -87,7 +94,7 @@ public class WatchFileChanges {
         return this;
     }
 
-    public static List<WatchService> getWatchServices(){
+    public static List<WatchService> getWatchServices() {
         return services;
     }
 }

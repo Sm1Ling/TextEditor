@@ -95,9 +95,7 @@ public class DirectoryTree implements OnMouseClick {
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }
-
-
-
+        
         return txt.toString();
     }
 

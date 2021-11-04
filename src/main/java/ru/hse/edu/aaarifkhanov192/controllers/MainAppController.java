@@ -1,14 +1,20 @@
 package ru.hse.edu.aaarifkhanov192.controllers;
 
+import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.ScrollBar;
 import javafx.scene.control.TreeView;
 import javafx.scene.input.*;
 import javafx.scene.layout.HBox;
+import javafx.stage.Modality;
 import javafx.stage.Screen;
+import javafx.stage.Stage;
 import javafx.util.Pair;
 import org.ahmadsoft.ropes.Rope;
 import org.antlr.v4.runtime.ANTLRInputStream;
@@ -28,9 +34,13 @@ import ru.hse.edu.aaarifkhanov192.supportiveclasses.directorytree.DirectoryTree;
 import ru.hse.edu.aaarifkhanov192.supportiveclasses.intervaltree.MyInterval;
 import ru.hse.edu.aaarifkhanov192.supportiveclasses.intervaltree.MyIntervalTree;
 import ru.hse.edu.aaarifkhanov192.supportiveclasses.intervaltree.MyNode;
+import ru.hse.edu.aaarifkhanov192.supportiveclasses.viewclistener.ViewInfo;
+import ru.hse.edu.aaarifkhanov192.supportiveclasses.viewclistener.ViewListener;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 
@@ -46,8 +56,6 @@ public class MainAppController {
     private ScrollBar vScroll;
     @FXML
     private HBox tabbox;
-
-    private Clipboard clipboard;
 
     private Rope text = Rope.BUILDER.build("private void render(Scene scene)/*comment {\n" +
             "        var canvas = (javafx.scene.canvas.Canvas) scene.getRoot().lookup(\"#myCanvas\");\n" +
@@ -98,56 +106,76 @@ public class MainAppController {
     private int lettersToCursorOld = 0;
     private int lettersToCursorNew = 0;
 
+    private Clipboard clipboard;
+
     //Для правильной работы выделения текста.
     private Pair<Integer, Integer> cursorOld;   //координаты, где произошел onPressed
     private Pair<Integer, Integer> cursorNew;   //Координаты, где происходит drag
     private final LineLight lineLight = new LineLight();    //Класс для выделенных линий.
+
+    private WatchFileChanges wfc;   //WatchService
+    private boolean dontAsk = false;    //Нужно отображать модульное окно или нет повторно.
+    private String saveHash;    //Хэш сохраненного файла в saveFile.
     // endregion
 
-
-    private void onCtrlCRelease() {
-        clipboard = Clipboard.getSystemClipboard();
-
-        //swap
-        if (lettersToCursorNew < lettersToCursorOld) {
-            Pair<Integer, Integer> tmp = new Pair<>(cursorOld.getKey(), cursorOld.getValue());
-            cursorOld = new Pair<>(cursorNew.getKey(), cursorNew.getValue());
-            cursorNew = new Pair<>(tmp.getKey(), tmp.getValue());
-
-            lettersToCursorNew += lettersToCursorOld;
-            lettersToCursorOld = lettersToCursorNew - lettersToCursorOld;
-            lettersToCursorNew -= lettersToCursorOld;
-        }
-
-        ClipboardContent content = new ClipboardContent();
-        content.putString(activeCanvas.text.subSequence(lettersToCursorOld, lettersToCursorNew).toString());
-        clipboard.setContent(content);
-        lettersToCursorOld = 0;
-        lettersToCursorNew = 0;
-    }
-
-    private void onCtrlVRelease() {
-        int letterCursor = lettersToCursor();
-        String clipBoardText = Clipboard.getSystemClipboard().getString();
-        activeCanvas.text = activeCanvas.text.insert(letterCursor, clipBoardText);
-
-        activeCanvas.undoRedo.addAction(
-                new Action(
-                        letterCursor,
-                        letterCursor + clipBoardText.length(),
-                        clipBoardText,
-                        false));
-        fileSaver.call(1);
-        textAnalizer();
-        resetCursor();
-        render();
-    }
 
     private MyIntervalTree<Token> mit;
 
     //    private final Debouncer<Integer> wordPrint = new Debouncer<Integer>(this::relex(),500);
     private final Debouncer<Integer> fileSaver = new Debouncer<>(this::saveFile, 30000);
 //    private final Debouncer<Integer> fileSaver = new Debouncer<>(this::saveFile,30000);
+
+
+    /**
+     * Вычисляет и возвращает хэш-значение строки <code>text</code>.
+     *
+     * @param text Строка.
+     * @return Вычисляет и возвращает хэш-значение строки <code>text</code>.
+     */
+    private String getHash(String text) {
+        MessageDigest md = null;
+        try {
+            md = MessageDigest.getInstance("MD5");
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+
+        byte[] dataBytes = text.getBytes();
+        byte[] mdBytes = new byte[0];
+        if (md != null) {
+            mdBytes = md.digest(dataBytes);
+        }
+
+        //convert the byte to hex format
+        StringBuilder sb = new StringBuilder();
+        for (byte b : mdBytes) {
+            sb.append(Integer.toString((b & 0xff), 16).substring(1));
+        }
+
+        return sb.toString();
+    }
+
+
+    /**
+     * Метод для создания и отображения модульного окна в случаях, когда изменен файл извне.
+     */
+    private void createModulePane() {
+        FXMLLoader loader = new FXMLLoader();
+        loader.setLocation(ChooseViewController.class.getResource("/ru.hse.edu.aaarifkhanov192/choose-view.fxml"));
+        Parent pane = null;
+        try {
+            pane = loader.load();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        Stage stage = new Stage();
+        stage.setResizable(false);
+        stage.initModality(Modality.WINDOW_MODAL);
+        stage.setScene(new Scene(Objects.requireNonNull(pane)));
+
+        stage.show();
+    }
+
 
     //TODO Разобраться с CtrlZ CtrlV
     //TODO Ало, когда буквы красить будем (лексер, аст, токены, интервалТри с цветами)
@@ -156,15 +184,53 @@ public class MainAppController {
     //TODO Однажды тут будут тесты
     @FXML
     private void initialize() {
+        ViewListener viewListener = new ViewListener() {
+            @Override
+            public void onChoose(ViewInfo data) {
+                System.out.println(data.dontAsk());
+                dontAsk = data.dontAsk();
+                createPannel(dt.readText("D:\\Projects\\IDE\\TextEditor\\.gitignore"), "D:\\Projects\\IDE\\TextEditor\\.gitignore");
+            }
+        };
 
-        WatchFileChanges wfc = new WatchFileChanges("D:\\Projects\\IDE\\TextEditor\\");
+        ChooseViewController.getListener(viewListener);
+        wfc = new WatchFileChanges("D:\\Projects\\IDE\\TextEditor\\");
         wfc.addListener(new IFileChangeListener() {
             @Override
             public void fileEdited(FileEvent event) {
-                System.out.println(event.file() + " changed");
-            }
-        }).startObserve();
+                //TODO Если путь не похож на тот файл, что мы открыли, то return
+//                if(event.file()./)
 
+                //Значит еще не произошло debounce ранее, но был изменен файл
+                if (saveHash == null) {
+                    //Если ничего не изменилось
+                    if (getHash(activeCanvas.text.toString()).equals(getHash(dt.readText("D:\\Projects\\IDE\\TextEditor\\.gitignore")))) {
+                        System.out.println("FILE DID NOT CHANGED");
+                    } else {
+                        System.out.println("FILE CHANGED, WOULD YOU LIKE DO LOAD IT? ");
+                        if (!dontAsk) {
+                            Thread panelThread = new Thread(() -> {
+                                Platform.runLater(() -> {
+                                    createModulePane();
+                                });
+                            });
+                            panelThread.start();
+                        } else {
+                            createPannel(dt.readText("D:\\Projects\\IDE\\TextEditor\\.gitignore"), "D:\\Projects\\IDE\\TextEditor\\.gitignore");
+                        }
+                    }
+                } else {
+                    //Значит сохранилась неизмененная версия
+                    if (saveHash.equals(getHash(dt.readText("D:\\Projects\\IDE\\TextEditor\\.gitignore")))) {
+                        System.out.println("TRUE THEY ARE EQUAL");
+                    } else {
+                        System.out.println("FALSE WOW SMTH CHANGED");
+                    }
+                    saveHash = null;
+                }
+            }
+        });
+        wfc.startObserve();
         /*wfc.stopObserve();*/
 
         mit = new MyIntervalTree<>();
@@ -270,6 +336,7 @@ public class MainAppController {
         try (Writer writer = new BufferedWriter(new OutputStreamWriter(
                 new FileOutputStream(activeCanvas.filePath), StandardCharsets.UTF_8))) {
             writer.write(activeCanvas.text.toString());
+            saveHash = getHash(activeCanvas.text.toString());
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         } catch (UnsupportedEncodingException e) {
@@ -334,9 +401,96 @@ public class MainAppController {
 
     //region Render Block
 
-    // TODO Переделать
 
-    boolean go = false;
+    /**
+     * Метод для покраски выделенных символов.
+     * @param canvas Полотно отрисовки.
+     * @param metrics Метрики шрифта.
+     */
+    private void chosenHighlight(Canvas canvas, FontMetrics metrics) {
+        if (lettersToCursorOld - lettersToCursorNew != 0) {
+            int ctr = 0;
+            var highlightColor = new Paint().setColor(Color.makeRGB(33, 66, 131));
+            for (Integer k : lineLight.getLines()) {
+                //попали на изначальную строку
+                if (Objects.equals(k, cursorOld.getValue())) {
+                    //И это линия, на которой курсор
+                    if (ctr == lineLight.size() - 1) {
+                        canvas.drawRect(new Rect(
+                                        settingsClass.startXPosition + cursorOld.getKey() * letterWidth,
+                                        (cursorOld.getValue()) * lineHeight,
+                                        settingsClass.startXPosition + (cursorNew.getKey()) * letterWidth,
+                                        (cursorNew.getValue()) * (lineHeight) + settingsClass.startYPosition + metrics.getDescent()// + 8
+                                ),
+                                highlightColor//settingsClass.coursorColor
+                        );
+
+                        ctr++;
+                        continue;
+                    }
+
+                    //Если курсор на другой линии
+                    if (!lineLight.isReversed()) {
+                        canvas.drawRect(new Rect(
+                                        settingsClass.startXPosition + cursorOld.getKey() * letterWidth,
+                                        cursorOld.getValue() * lineHeight,
+                                        settingsClass.startXPosition + (activeCanvas.linesLengths.get(cursorOld.getValue()) - 1) * letterWidth,
+                                        cursorOld.getValue() * (lineHeight) + settingsClass.startYPosition + metrics.getDescent()// + 8
+                                ),
+                                highlightColor//settingsClass.coursorColor
+                        );
+                    } else {
+                        canvas.drawRect(new Rect(
+                                        settingsClass.startXPosition - centerX,
+                                        cursorOld.getValue() * (lineHeight),
+                                        settingsClass.startXPosition + (cursorOld.getKey()) * letterWidth,
+                                        cursorOld.getValue() * lineHeight + settingsClass.startYPosition + metrics.getDescent()// + 8
+                                ),
+                                highlightColor// settingsClass.coursorColor
+                        );
+                    }
+
+                }
+
+                //Если это не текущая строка
+                if (ctr != lineLight.size() - 1 && !Objects.equals(k, cursorOld.getValue())) {
+                    canvas.drawRect(new Rect(
+                                    settingsClass.startXPosition - centerX,
+                                    k * lineHeight,
+                                    settingsClass.startXPosition + (activeCanvas.linesLengths.get(k) - 1) * letterWidth,
+                                    k * (lineHeight) + settingsClass.startYPosition + metrics.getDescent()// + 8
+                            ),
+                            highlightColor//settingsClass.cursorColor
+                    );
+                }
+
+                if (ctr == lineLight.size() - 1 && !Objects.equals(k, cursorOld.getValue())) {
+//                    //Если же мы на друой линии, но нашли текущую
+                    if (!lineLight.isReversed()) {
+                        canvas.drawRect(new Rect(
+                                        settingsClass.startXPosition - centerX,
+                                        k * lineHeight,
+                                        settingsClass.startXPosition + (cursorNew.getKey()) * letterWidth,
+                                        cursorNew.getValue() * (lineHeight) + settingsClass.startYPosition + metrics.getDescent()// + 8
+                                ),
+                                highlightColor//settingsClass.coursorColor
+                        );
+                    } else {
+                        canvas.drawRect(new Rect(
+                                        settingsClass.startXPosition + (cursorNew.getKey()) * letterWidth,
+                                        cursorNew.getValue() * (lineHeight),
+                                        settingsClass.startXPosition + (activeCanvas.linesLengths.get(k) - 1) * letterWidth,
+                                        k * lineHeight + settingsClass.startYPosition + metrics.getDescent()// + 8
+                                ),
+                                highlightColor//settingsClass.coursorColor
+                        );
+                    }
+                }
+                ctr++;
+            }
+        }
+
+    }
 
     private void render() {
         var data = Objects.requireNonNull(makeImage().encodeToData()).getBytes();
@@ -357,93 +511,7 @@ public class MainAppController {
         var font = settingsClass.mainFont;
         int i = 0;
 
-        if (lettersToCursorOld - lettersToCursorNew != 0) {
-            int ctr = 0;
-            var highlightColor = new Paint().setColor(Color.makeRGB(33,66,131));
-            for (Integer k : lineLight.getLines()) {
-                //попали на изначальную строку
-                if (Objects.equals(k, cursorOld.getValue())) {
-//                    x = settingsClass.startXPosition - centerX + activeCanvas.coursorX * letterWidth;
-//                    y = settingsClass.startYPosition - centerY + activeCanvas.coursorY * lineHeight;
-//                    canvas.drawLine(x, y + font.getMetrics().getDescent(),
-//                            x, y + font.getMetrics().getAscent(), settingsClass.coursorColor);
-                    //И это линия, на которой курсор
-                    if(ctr == lineLight.size() - 1){
-                        canvas.drawRect(new Rect(
-                                        settingsClass.startXPosition + cursorOld.getKey() * letterWidth,
-                                        (cursorOld.getValue()) * lineHeight,
-                                        settingsClass.startXPosition + (cursorNew.getKey()) * letterWidth,
-                                        (cursorNew.getValue()) * (lineHeight) + settingsClass.startYPosition + 8
-                                ),
-                                highlightColor//settingsClass.coursorColor
-                        );
-
-                        ctr++;
-                        continue;
-                    }
-
-                    //Если курсор на другой линии
-                    if(!lineLight.isReversed()){
-                        canvas.drawRect(new Rect(
-                                        settingsClass.startXPosition + cursorOld.getKey() * letterWidth,
-                                        cursorOld.getValue() * lineHeight,
-                                        settingsClass.startXPosition + (activeCanvas.linesLengths.get(cursorOld.getValue()) - 1) * letterWidth,
-                                        cursorOld.getValue() * (lineHeight) + settingsClass.startYPosition + 8
-                                ),
-                                highlightColor//settingsClass.coursorColor
-                        );
-                    }
-                    else {
-                        canvas.drawRect(new Rect(
-                                        settingsClass.startXPosition - centerX,
-                                        cursorOld.getValue() * (lineHeight),
-                                        settingsClass.startXPosition + (cursorOld.getKey()) * letterWidth,
-                                        cursorOld.getValue() * lineHeight + settingsClass.startYPosition + 8
-                                ),
-                                highlightColor// settingsClass.coursorColor
-                        );
-                    }
-
-                }
-
-                //Если это не текущая строка
-                if(ctr != lineLight.size() - 1 && !Objects.equals(k, cursorOld.getValue())){
-                    canvas.drawRect(new Rect(
-                                    settingsClass.startXPosition - centerX,
-                                    k * lineHeight,
-                                    settingsClass.startXPosition +(activeCanvas.linesLengths.get(k) - 1) * letterWidth,
-                                    k * (lineHeight) + settingsClass.startYPosition + 8
-                            ),
-                            highlightColor//settingsClass.cursorColor
-                    );
-                }
-
-                if(ctr == lineLight.size() - 1 && !Objects.equals(k, cursorOld.getValue())){
-//                    //Если же мы на друой линии, но нашли текущую
-                    if(!lineLight.isReversed()){
-                        canvas.drawRect(new Rect(
-                                        settingsClass.startXPosition - centerX,
-                                        k * lineHeight,
-                                        settingsClass.startXPosition+ (cursorNew.getKey()) * letterWidth,
-                                        cursorNew.getValue() * (lineHeight) + settingsClass.startYPosition + 8
-                                ),
-                                highlightColor//settingsClass.coursorColor
-                        );
-                    }
-                    else{
-                        canvas.drawRect(new Rect(
-                                        settingsClass.startXPosition+(cursorNew.getKey()) * letterWidth,
-                                        cursorNew.getValue() * (lineHeight),
-                                        settingsClass.startXPosition+(activeCanvas.linesLengths.get(k) - 1)* letterWidth,
-                                        k * lineHeight  + settingsClass.startYPosition + 8
-                                ),
-                                highlightColor//settingsClass.coursorColor
-                        );
-                    }
-                }
-                ctr++;
-            }
-        }
+        chosenHighlight(canvas, font.getMetrics());
         for (Character character : activeCanvas.text) {
             List<MyNode<Token>> tk = mit.getIntervals(i);
             if (tk != null && !tk.isEmpty()) {
@@ -523,6 +591,58 @@ public class MainAppController {
         render();
     }
 
+    private void onCtrlCRelease() {
+        clipboard = Clipboard.getSystemClipboard();
+
+        //swap
+        if (lettersToCursorNew < lettersToCursorOld) {
+            Pair<Integer, Integer> tmp = new Pair<>(cursorOld.getKey(), cursorOld.getValue());
+            cursorOld = new Pair<>(cursorNew.getKey(), cursorNew.getValue());
+            cursorNew = new Pair<>(tmp.getKey(), tmp.getValue());
+
+            lettersToCursorNew += lettersToCursorOld;
+            lettersToCursorOld = lettersToCursorNew - lettersToCursorOld;
+            lettersToCursorNew -= lettersToCursorOld;
+        }
+
+        ClipboardContent content = new ClipboardContent();
+        content.putString(activeCanvas.text.subSequence(lettersToCursorOld, lettersToCursorNew).toString());
+        clipboard.setContent(content);
+        lettersToCursorOld = 0;
+        lettersToCursorNew = 0;
+    }
+
+    private void onCtrlVRelease() {
+        int letterCursor = lettersToCursor();
+        String clipBoardText = Clipboard.getSystemClipboard().getString();
+        activeCanvas.text = activeCanvas.text.insert(letterCursor, clipBoardText);
+
+        activeCanvas.undoRedo.addAction(
+                new Action(
+                        letterCursor,
+                        letterCursor + clipBoardText.length(),
+                        clipBoardText,
+                        false));
+        fileSaver.call(1);
+        //TODO кажется нужно исправить
+        clipboardTextAnalyzer(clipBoardText);
+        textAnalizer();
+        resetCursor();
+        render();
+    }
+
+    private void clipboardTextAnalyzer(String text) {
+        String[] splitted = text.split("\\n");
+        System.out.println(splitted.length);
+        if (splitted.length > 1) {
+            activeCanvas.coursorY += splitted.length;
+            activeCanvas.coursorX = splitted[splitted.length - 1].length() - 1;
+        } else {
+            activeCanvas.coursorX += splitted[0].length();
+        }
+
+    }
+
     private Integer typedKeys = 0;
     private final EventHandler<KeyEvent> onKeyTyped = new javafx.event.EventHandler<>() {
         @Override
@@ -535,6 +655,8 @@ public class MainAppController {
             if (!keyEvent.isShortcutDown()) {
                 switch (keyEvent.getCharacter()) {
                     case "\\" -> {
+                        createModulePane();
+//                        wfc.stopObserve();
 //                        rerenderLineInterval();
                         return;
                     }
@@ -674,8 +796,8 @@ public class MainAppController {
             countCursor(mouseEvent);
             resetCursor();
 
-            //
-            if(activeCanvas.coursorX != cursorNew.getKey() || activeCanvas.coursorY != cursorNew.getValue()){
+            if ((cursorNew != null && activeCanvas.coursorX != cursorNew.getKey()) ||
+                    (cursorNew != null && activeCanvas.coursorY != cursorNew.getValue())) {
                 lineLight.reload();
             }
             render();
