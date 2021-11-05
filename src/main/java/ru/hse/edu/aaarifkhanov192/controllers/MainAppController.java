@@ -5,6 +5,7 @@ import javafx.beans.value.ObservableValue;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ScrollBar;
@@ -13,7 +14,6 @@ import javafx.scene.input.*;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
-import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
@@ -70,15 +70,15 @@ public class MainAppController {
     //информация о максимальном размере строки и количестве строк в canvas
     private float maxLineLength;
     private float linesCount;
+    //маркер запущенного приложения
+    private boolean appstarted;
     //окно активного текст
     private TextCanvas activeCanvas;
-    //список окон с текстами
-    private final List<TextCanvas> canWindows = new ArrayList<>();
     // endregion
 
 
     private final Debouncer<Integer> wordPrint = new Debouncer<>(this::relex, 500);
-    private final Debouncer<Integer> fileSaver = new Debouncer<>(this::saveFile, 30000);
+    private final Debouncer<String> fileSaver = new Debouncer<>(this::saveFile, 30000);
 
     //TODO Разобраться с добавлением таб окон
     //TODO Возможно присобачить выделение
@@ -106,53 +106,42 @@ public class MainAppController {
         maxLineLength = (screenWidth - settingsClass.startXPosition) / letterWidth;
         linesCount = screenHeight / lineHeight;
 
-        hScroll.setVisible(false);
-        vScroll.setVisible(false);
-        tfCanvas.setVisible(false);
+        setActiveElements(new Node[]{tfCanvas,hScroll,vScroll,indexCanvas}, false);
 
         DirectoryResult r = dt.fillRoot();
         treeView.setOnMouseClicked(mouseEvent -> {
             String path = dt.getPathToTappedFile(mouseEvent, treeView);
-            if (path != null &&
-                    canWindows.stream().noneMatch((o) -> o.filePath.equals(path))) {
-                createPannel(dt.readText(path), path);
+            if(path != null){
+                if(activeCanvas == null || !activeCanvas.filePath.equals(path)){
+                    closeCanvas(activeCanvas);
+                    createPannel(dt.readText(path), path);
+                }
             }
+
         });
 
         treeView.setRoot(r.rootTreeNode);
     }
 
-    @FXML
-    public void openSettingsMenu(){
-        FXMLLoader fxmlLoader = new FXMLLoader();
-        fxmlLoader.setLocation(SettingsController.class.getResource("/ru.hse.edu.aaarifkhanov192/settings-view.fxml"));
-        try {
-            Pane root = fxmlLoader.load();
-            Stage stage = new Stage();
-            stage.setMinHeight(root.getMinHeight()); //устанавливаю минимальные значения для окна добавления
-            stage.setMinWidth(root.getMinWidth());
-            stage.setTitle("Settings Window");
-            stage.initModality(Modality.APPLICATION_MODAL);
-            stage.initOwner(tfCanvas.getScene().getWindow());
-            stage.setScene(new Scene(root));
-            //передаю в класс-контроллер ссылку на этот контроллер
-            SettingsController controller = fxmlLoader.getController();
-            controller.mcontroller = this;
-            controller.start();
-            stage.showAndWait();
-
-        } catch (IOException e) { //если возникает ошибка - показываю диалоговое окно с этой ошибкой
-            Alert alert = new Alert(Alert.AlertType.ERROR);
-            alert.setTitle("Что-то не так");
-            alert.setHeaderText("Возникла IOException");
-            alert.setContentText(e.getMessage());
-            alert.showAndWait();
-        }
-    }
-
     private void createPannel(String text, String path) {
+        if(!appstarted){
+            tfCanvas.setOnKeyTyped(onKeyTyped);
+            tfCanvas.setOnKeyPressed(onKeyPressed);
+            tfCanvas.getScene().getAccelerators().put(
+                    new KeyCodeCombination(KeyCode.Z, KeyCombination.SHORTCUT_DOWN),
+                    ctrlZPressed);
+            tfCanvas.getScene().getAccelerators().put(
+                    new KeyCodeCombination(KeyCode.Y, KeyCombination.SHORTCUT_DOWN),
+                    ctrlYPressed);
+            tfCanvas.addEventFilter(MouseEvent.MOUSE_CLICKED, canvasMouseClicked);
+            vScroll.valueProperty().addListener(vScrollListener);
+            hScroll.valueProperty().addListener(hScrollListener);
+            appstarted = true;
+        }
+
+        setActiveElements(new Node[]{tfCanvas,hScroll,vScroll,indexCanvas}, true);
+
         activeCanvas = new TextCanvas();
-        canWindows.add(activeCanvas);
 
         activeCanvas.text = Rope.BUILDER.build(text);
         activeCanvas.filePath = path;
@@ -170,37 +159,16 @@ public class MainAppController {
         runLexer();
         render();
 
-        if (canWindows.size() == 1) {
-            tfCanvas.setVisible(true);
-            hScroll.setVisible(true);
-            vScroll.setVisible(true);
-
-            tfCanvas.setOnKeyTyped(onKeyTyped);
-            tfCanvas.setOnKeyPressed(onKeyPressed);
-            tfCanvas.getScene().getAccelerators().put(
-                    new KeyCodeCombination(KeyCode.Z, KeyCombination.SHORTCUT_DOWN),
-                    ctrlZPressed);
-            tfCanvas.getScene().getAccelerators().put(
-                    new KeyCodeCombination(KeyCode.Y, KeyCombination.SHORTCUT_DOWN),
-                    ctrlYPressed);
-            tfCanvas.addEventFilter(MouseEvent.MOUSE_CLICKED, canvasMouseClicked);
-            vScroll.valueProperty().addListener(vScrollListener);
-            hScroll.valueProperty().addListener(hScrollListener);
-        }
     }
-
-   //private void switchPannel(int i) {
-   //    //TODO не забыть поменять позицию относительно скролла
-   //}
 
     private void relex(Integer x) {
         runLexer();
         render();
     }
 
-    private void saveFile(Integer x) {
+    private void saveFile(String x) {
         try (Writer writer = new BufferedWriter(new OutputStreamWriter(
-                new FileOutputStream(activeCanvas.filePath), StandardCharsets.UTF_8))) {
+                new FileOutputStream(x), StandardCharsets.UTF_8))) {
             writer.write(activeCanvas.text.toString());
         } catch (IOException e) {
             e.printStackTrace();
@@ -231,6 +199,19 @@ public class MainAppController {
             activeCanvas.editChars = 0;
             activeCanvas.startEditChars = -1;
         }
+    }
+
+    private void closeCanvas(TextCanvas canvas){
+        if(canvas == null){
+            return;
+        }
+        saveFile(canvas.filePath);
+        wordPrint.terminate();
+        fileSaver.terminate();
+
+        setActiveElements(new Node[]{tfCanvas,hScroll,vScroll,indexCanvas}, false);
+
+        activeCanvas = null;
     }
 
 
@@ -297,6 +278,13 @@ public class MainAppController {
         activeCanvas.coursorX = Math.min(
                 activeCanvas.linesLengths.get(activeCanvas.coursorY) - 1, activeCanvas.coursorX);
         activeCanvas.coursorX = Math.max(activeCanvas.coursorX, 0);
+    }
+
+    private void setActiveElements(Node[] nodes, boolean activeness){
+        for(var e: nodes){
+            e.setDisable(!activeness);
+            e.setVisible(activeness);
+        }
     }
 
     //endregion
@@ -444,7 +432,7 @@ public class MainAppController {
                     }
 
                     wordPrint.call(1);
-                    fileSaver.call(1);
+                    fileSaver.call(activeCanvas.filePath);
                     textAnalyzer();
                     resetCursor();
                     render();
@@ -595,7 +583,7 @@ public class MainAppController {
             activeCanvas.coursorY = lineCharToCursor(act.getEnd())[0];
         }
         runLexer();
-        fileSaver.call(1);
+        fileSaver.call(activeCanvas.filePath);
         textAnalyzer();
         resetCursor();
         render();
@@ -643,6 +631,39 @@ public class MainAppController {
     //endregion
 
     //region Other Controls
+    @FXML
+    private void openSettingsMenu(){
+        FXMLLoader fxmlLoader = new FXMLLoader();
+        fxmlLoader.setLocation(SettingsController.class.getResource("/ru.hse.edu.aaarifkhanov192/settings-view.fxml"));
+        try {
+            Pane root = fxmlLoader.load();
+            Stage stage = new Stage();
+            stage.setMinHeight(root.getMinHeight()); //устанавливаю минимальные значения для окна добавления
+            stage.setMinWidth(root.getMinWidth());
+            stage.setTitle("Settings Window");
+            stage.initModality(Modality.APPLICATION_MODAL);
+            stage.initOwner(tfCanvas.getScene().getWindow());
+            stage.setScene(new Scene(root));
+            //передаю в класс-контроллер ссылку на этот контроллер
+            SettingsController controller = fxmlLoader.getController();
+            controller.mcontroller = this;
+            controller.start();
+            stage.showAndWait();
 
+        } catch (IOException e) { //если возникает ошибка - показываю диалоговое окно с этой ошибкой
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Что-то не так");
+            alert.setHeaderText("Возникла IOException");
+            alert.setContentText(e.getMessage());
+            alert.showAndWait();
+        }
+    }
+
+    @FXML
+    private void closeFile(){
+        if(activeCanvas != null){
+            closeCanvas(activeCanvas);
+        }
+    }
     //endregion
 }

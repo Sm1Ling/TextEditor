@@ -9,12 +9,13 @@
      <menus>
        <Menu mnemonicParsing="false" text="File">
          <items>
-           <MenuItem mnemonicParsing="false" styleClass="label" text="Close" />
+           <MenuItem mnemonicParsing="false" styleClass="label" text="Choose Directory" />
+             <MenuItem onAction="#closeFile" mnemonicParsing="false" styleClass="label" text="Close File" />
          </items>
        </Menu>
        <Menu mnemonicParsing="false" text="Settings">
          <items>
-           <MenuItem onAction="#openSettingsMenu" mnemonicParsing="false" text="Settings Menu" />
+           <MenuItem mnemonicParsing="false" onAction="#openSettingsMenu" text="Settings Menu" />
          </items>
        </Menu>
        <Menu mnemonicParsing="false" text="Help">
