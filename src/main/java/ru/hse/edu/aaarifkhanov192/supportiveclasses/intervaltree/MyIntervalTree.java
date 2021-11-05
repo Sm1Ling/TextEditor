@@ -29,9 +29,6 @@ public class MyIntervalTree<T> {
     public void insert(int start, int stop, T token) {
         insert(new MyInterval(start, stop), token);
     }
-//    public void insert(MyInterval interval, T token) {
-//        root = insert(root, interval, token);
-//    }
 
     public void insert(MyInterval interval, T token) {
         MyNode<T> node = new MyNode<>(interval, token);
@@ -96,33 +93,6 @@ public class MyIntervalTree<T> {
         return node;
     }
 
-//    private MyNode<T> deleteInterval(MyNode<T> node, MyInterval interval) {
-//        if (node == null) {
-//            return null;
-//        }
-//        MyNode<T> tmp;
-//        if (interval.start() < node.getInterval().start()) {
-//            node.setLeft(deleteInterval(node.getLeft(), interval));
-//        } else if (interval.start() > node.getInterval().start()) {
-//            node.setRight(deleteInterval(node.getRight(), interval));
-//        } else if (interval.start() == node.getInterval().start()) {
-//            if (interval.stop() == node.getInterval().stop()) {
-//                if (node.getLeft() == null) {
-//                    return node.getRight();
-//                } else if (node.getRight() == null) {
-//                    return node.getLeft();
-//                }
-//                tmp = minLowInterval(node.getRight());
-//                node.setInterval(tmp.getInterval());
-//                node.setRight(deleteInterval(node.getRight(), tmp.getInterval()));
-//            } else {
-//                node.setRight(deleteInterval(node.getRight(), interval));
-//            }
-//        }
-//
-//        return node;
-//    }
-
     private void deleteInterval(MyNode<T> node) {
         if (node == null) {
             return;
@@ -184,24 +154,6 @@ public class MyIntervalTree<T> {
         getOverlaps(node.getLeft(), interval);
         getOverlaps(node.getRight(), interval);
     }
-
-//    private MyNode<T> insert(MyNode<T> node, MyInterval interval, T token) {
-//        if (node == null) {
-//            return new MyNode<>(interval, token);
-//        }
-//        MyNode<T> added = new MyNode<>(interval, token);
-//        added.setColor(NodeColor.RED);
-//
-//        int leftStart = node.getInterval().start();
-//        if (interval.start() < leftStart) {
-//            node.setLeft(insert(node.getLeft(), interval, token));
-//        } else {
-//            node.setRight(insert(node.getRight(), interval, token));
-//        }
-//
-//        rebalanceInsertion(added);
-//        return node;
-//    }
 
     private void insert(MyNode<T> node, MyInterval interval, T token) {
         MyNode<T> added = null;

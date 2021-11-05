@@ -5,6 +5,14 @@ public record MyInterval(int start, int stop) implements Comparable<MyInterval> 
         return (this.start <= interval.stop && interval.start <= this.stop);
     }
 
+    public boolean isOverlaps(int start, int stop){
+        return (this.start <= stop && start <= this.stop);
+    }
+
+    public boolean isOverlaps(int point){
+        return (this.start <= point && point <= this.stop);
+    }
+
     @Override
     public String toString() {
         return "(" + start + ", " + stop + ')';

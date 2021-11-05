@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+
+<Pane maxHeight="402.0" maxWidth="365.0" minHeight="402.0" minWidth="365.0" prefHeight="402.0" prefWidth="365.0" style="-fx-background-color: #3c3f41;" xmlns="http://javafx.com/javafx/11.0.2" xmlns:fx="http://javafx.com/fxml/1" fx:controller="ru.hse.edu.aaarifkhanov192.controllers.SettingsController">
+   <children>
+      <VBox alignment="TOP_CENTER" layoutX="-1.0" layoutY="-1.0" prefHeight="402.0" prefWidth="365.0">
+         <children>
+            <Label alignment="CENTER" style="-fx-text-fill: #b8b8b8;" text="Settings" textAlignment="CENTER">
+               <font>
+                  <Font size="14.0" />
+               </font>
+               <padding>
+                  <Insets bottom="5.0" top="5.0" />
+               </padding>
+            </Label>
+            <Separator prefWidth="200.0" />
+            <HBox alignment="CENTER" layoutX="10.0" layoutY="312.0" prefHeight="38.0" prefWidth="366.0">
+               <children>
+                  <Label alignment="CENTER" style="-fx-text-fill: #b8b8b8;" text="Main Font Color" />
+                  <ColorPicker fx:id="mainFont" editable="true" prefWidth="131.0" style="-fx-background-color: #7b7c7d;">
+                     <HBox.margin>
+                        <Insets left="30.0" />
+                     </HBox.margin></ColorPicker>
+               </children></HBox>
+            <HBox alignment="CENTER" layoutX="10.0" layoutY="44.0" prefHeight="38.0" prefWidth="366.0">
+               <children>
+                  <Label alignment="CENTER" prefHeight="18.0" prefWidth="86.0" style="-fx-text-fill: #b8b8b8;" text="Carriage Color" textAlignment="CENTER" />
+                  <ColorPicker fx:id="carriageColor" editable="true" prefHeight="26.0" prefWidth="128.0" style="-fx-background-color: #7b7c7d;">
+                     <HBox.margin>
+                        <Insets left="30.0" />
+                     </HBox.margin>
+                  </ColorPicker>
+               </children>
+            </HBox>
+            <HBox alignment="CENTER" layoutX="10.0" layoutY="82.0" prefHeight="38.0" prefWidth="366.0">
+               <children>
+                  <Label alignment="CENTER" prefHeight="18.0" prefWidth="98.0" style="-fx-text-fill: #b8b8b8;" text="Background color" textAlignment="CENTER" />
+                  <ColorPicker fx:id="backgroundColor" editable="true" prefHeight="26.0" prefWidth="128.0" style="-fx-background-color: #7b7c7d;">
+                     <HBox.margin>
+                        <Insets left="15.0" />
+                     </HBox.margin>
+                  </ColorPicker>
+               </children>
+            </HBox>
+            <HBox alignment="CENTER" layoutX="10.0" layoutY="120.0" prefHeight="38.0" prefWidth="366.0">
+               <children>
+                  <Label alignment="CENTER" prefHeight="18.0" prefWidth="98.0" style="-fx-text-fill: #b8b8b8;" text="Line color" textAlignment="CENTER" />
+                  <ColorPicker fx:id="lineColor" editable="true" prefHeight="26.0" prefWidth="128.0" style="-fx-background-color: #7b7c7d;">
+                     <HBox.margin>
+                        <Insets left="15.0" />
+                     </HBox.margin>
+                  </ColorPicker>
+               </children>
+            </HBox>
+            <Separator layoutX="10.0" layoutY="40.0" prefWidth="200.0" />
+            <Label prefHeight="18.0" prefWidth="195.0" style="-fx-text-fill: #b8b8b8;" text="Token Color">
+               <VBox.margin>
+                  <Insets top="10.0" />
+               </VBox.margin>
+            </Label>
+            <HBox alignment="CENTER" prefHeight="37.0" prefWidth="366.0">
+               <children>
+                  <ChoiceBox fx:id="choiceBox" prefHeight="26.0" prefWidth="147.0" style="-fx-background-color: #7b7c7d;">
+                     <HBox.margin>
+                        <Insets right="10.0" />
+                     </HBox.margin>
+                  </ChoiceBox>
+                  <ColorPicker fx:id="tokensColor" editable="true" style="-fx-background-color: #7b7c7d;">
+                     <HBox.margin>
+                        <Insets left="10.0" />
+                     </HBox.margin>
+                  </ColorPicker>
+               </children>
+            </HBox>
+         </children></VBox>
+   </children>
+</Pane>

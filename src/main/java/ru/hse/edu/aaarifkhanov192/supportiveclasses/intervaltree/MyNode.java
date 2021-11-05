@@ -127,9 +127,9 @@ public class MyNode<T> {
     @Override
     public String toString() {
         return "{" + getInterval() +
-                ", v: " + getToken() +
+                ", v: " + getToken()  +
                 ", [left:" + getLeft() +
                 ", right:" + getRight() +
-                "]}";
+                "]}" ;
     }
 }
