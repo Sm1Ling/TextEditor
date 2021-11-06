@@ -11,8 +11,6 @@ import java.io.IOException;
 
 public class TextEditor extends Application {
 
-    //private Clipboard clipboard;
-
     @Override
     public void start(Stage stage) throws IOException {
         FXMLLoader fxmlLoader = new FXMLLoader(TextEditor.class.getResource("/ru.hse.edu.aaarifkhanov192/editor-view.fxml"));

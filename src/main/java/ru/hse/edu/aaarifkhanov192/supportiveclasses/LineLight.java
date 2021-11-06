@@ -1,4 +1,4 @@
-package ru.hse.edu.aaarifkhanov192;
+package ru.hse.edu.aaarifkhanov192.supportiveclasses;
 
 import java.util.ArrayList;
 import java.util.List;

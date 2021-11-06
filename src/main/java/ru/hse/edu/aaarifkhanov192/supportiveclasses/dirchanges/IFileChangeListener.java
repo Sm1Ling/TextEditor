@@ -1,4 +1,4 @@
-package ru.hse.edu.aaarifkhanov192.controllers.dirchanges;
+package ru.hse.edu.aaarifkhanov192.supportiveclasses.dirchanges;
 
 /**
  * Все слушатели директории реализуют данный интерфейс.
