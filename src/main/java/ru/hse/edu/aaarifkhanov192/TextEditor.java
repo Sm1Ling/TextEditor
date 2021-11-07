@@ -17,6 +17,7 @@ public class TextEditor extends Application {
 
         stage.setTitle("TextEditor");
         stage.setScene(scene);
+        stage.setResizable(false);
 
         stage.show();
     }
