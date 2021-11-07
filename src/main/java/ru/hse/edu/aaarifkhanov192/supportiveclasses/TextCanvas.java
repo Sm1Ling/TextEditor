@@ -20,15 +20,12 @@ public class TextCanvas {
     //пары для подсчета символов в строке и итогового количества символов
     public List<Integer> linesLengths = new ArrayList<>();
 
-    public int coursorX;
-    public int coursorY;
-
     public float scrollPositionY;
     public float scrollPositionX;
 
-    public UndoRedoController  undoRedo = new UndoRedoController(20);
+    public final UndoRedoController  undoRedo = new UndoRedoController(20);
 
-    public String filePath;
+    public final CursorSupporter cursor = new CursorSupporter();
 
     public int editChars = 0;
     public volatile int startEditChars = -1;
