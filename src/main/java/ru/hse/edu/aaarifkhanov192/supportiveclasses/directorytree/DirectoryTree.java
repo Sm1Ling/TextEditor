@@ -4,12 +4,9 @@ import javafx.scene.control.MultipleSelectionModel;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.input.MouseEvent;
-import ru.hse.edu.aaarifkhanov192.controllers.dirchanges.WatchFileChanges;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.nio.file.Path;
-import java.util.Scanner;
 
 /**
  * Класс представляет работу с файлами и верхней директорией, также заполняет {@link TreeItem}

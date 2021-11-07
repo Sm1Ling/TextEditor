@@ -12,6 +12,7 @@ public class SettingsClass {
     public Paint mainColor = new Paint().setColor(0xffA9B7C6); //opacity-red-green-blue
     public Paint lineColor = new Paint().setColor(0xff5e5e5e);
     public Paint coursorColor = new Paint().setColor(0xffffffff);
+    public Paint selectionColor = new Paint().setColor(Color.makeRGB(33, 66, 131));
 
     public final Map<String,Paint> colorMap = new HashMap<String,Paint>(16);
 
