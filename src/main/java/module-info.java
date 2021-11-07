@@ -12,11 +12,13 @@ module ru.hse.edu.aaarifkhanov192.TextEditor {
     exports ru.hse.edu.aaarifkhanov192;
     exports ru.hse.edu.aaarifkhanov192.controllers;
     exports ru.hse.edu.aaarifkhanov192.supportiveclasses;
-    exports ru.hse.edu.aaarifkhanov192.lexer;
+    exports ru.hse.edu.aaarifkhanov192.supportiveclasses.directorytree;
+    exports ru.hse.edu.aaarifkhanov192.supportiveclasses.intervaltree;
+    exports ru.hse.edu.aaarifkhanov192.supportiveclasses.viewclistener;
 
     opens ru.hse.edu.aaarifkhanov192.supportiveclasses to javafx.fxml;
     opens ru.hse.edu.aaarifkhanov192 to javafx.fxml;
     opens ru.hse.edu.aaarifkhanov192.controllers to javafx.fxml;
-    exports ru.hse.edu.aaarifkhanov192.supportiveclasses.intervaltree;
     opens ru.hse.edu.aaarifkhanov192.supportiveclasses.intervaltree to javafx.fxml;
+    opens ru.hse.edu.aaarifkhanov192.supportiveclasses.viewclistener to javafx.fxml;
 }

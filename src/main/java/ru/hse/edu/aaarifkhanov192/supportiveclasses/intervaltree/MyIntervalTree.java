@@ -67,7 +67,25 @@ public class MyIntervalTree<T> {
         deleteInterval(findInterval(root, interval));
     }
 
-    private MyNode<T> findInterval(MyNode<T> node, MyInterval interval) {
+    public void shiftIntervals(int biggerStart, int shift) {
+        shift(root, biggerStart, shift);
+    }
+
+    private void shift(MyNode<T> node, int biggerStart, int shift) {
+        if(node == null){
+            return;
+        }
+
+        if(node.getInterval().start() > biggerStart){
+            node.setInterval(new MyInterval(node.getInterval().start() + shift, node.getInterval().stop() + shift));
+        }
+
+//        if(node.getLeft().getInterval().start() > biggerStart)
+        shift(node.getLeft(), biggerStart, shift);
+        shift(node.getRight(), biggerStart, shift);
+    }
+
+    public MyNode<T> findInterval(MyNode<T> node, MyInterval interval) {
         while (node != null) {
             if (node.getInterval().compareTo(interval) > 0) {
                 node = node.getLeft();
@@ -230,27 +248,31 @@ public class MyIntervalTree<T> {
         while (node != root && node != null && node.getColor() == NodeColor.BLACK) {
             if (node.parentDirection() == NodeDirection.RIGHT) {
                 MyNode<T> aux = node.getParent().getRight();
-                if (aux.getColor() == NodeColor.RED) {
+                if (aux != null && aux.getColor() == NodeColor.RED) {
                     aux.setColor(NodeColor.BLACK);
                     node.getParent().setColor(NodeColor.RED);
                     rotateLeft(node.getParent());
                     aux = node.getParent().getRight();
                 }
 
-                if (aux.getLeft().getColor() == NodeColor.BLACK && aux.getRight().getColor() == NodeColor.BLACK) {
+                if (aux != null && aux.getLeft() != null && aux.getLeft().getColor() == NodeColor.BLACK && aux.getRight().getColor() == NodeColor.BLACK) {
                     aux.setColor(NodeColor.RED);
                     node = node.getParent();
                 } else {
-                    if (aux.getRight().getColor() == NodeColor.BLACK) {
+                    if (aux != null && aux.getRight() != null && aux.getRight().getColor() == NodeColor.BLACK) {
                         aux.getLeft().setColor(NodeColor.BLACK);
                         aux.setColor(NodeColor.RED);
                         rotateRight(aux);
                         aux = node.getParent().getRight();
                     }
 
-                    aux.setColor(node.getParent().getColor());
+                    if (aux != null) {
+                        aux.setColor(node.getParent().getColor());
+                    }
                     node.getParent().setColor(NodeColor.BLACK);
-                    aux.getRight().setColor(NodeColor.BLACK);
+                    if (aux != null && aux.getRight() != null) {
+                        aux.getRight().setColor(NodeColor.BLACK);
+                    }
                     rotateLeft(node.getParent());
                     node = root;
                 }
@@ -263,20 +285,26 @@ public class MyIntervalTree<T> {
                     aux = node.getParent().getLeft();
                 }
 
-                if (aux.getLeft().getColor() == NodeColor.BLACK && aux.getRight().getColor() == NodeColor.BLACK) {
+                if (aux != null && aux.getLeft() != null && aux.getLeft().getColor() == NodeColor.BLACK && aux.getRight() != null && aux.getRight().getColor() == NodeColor.BLACK) {
                     aux.setColor(NodeColor.RED);
                     node = node.getParent();
                 } else {
-                    if (aux.getLeft().getColor() == NodeColor.BLACK) {
-                        aux.getRight().setColor(NodeColor.BLACK);
+                    if (aux != null && aux.getLeft() != null && aux.getLeft().getColor() == NodeColor.BLACK) {
+                        if (aux.getRight() != null) {
+                            aux.getRight().setColor(NodeColor.BLACK);
+                        }
                         aux.setColor(NodeColor.RED);
                         rotateRight(aux);
                         aux = node.getParent().getLeft();
                     }
 
-                    aux.setColor(node.getParent().getColor());
+                    if (aux != null) {
+                        aux.setColor(node.getParent().getColor());
+                    }
                     node.getParent().setColor(NodeColor.BLACK);
-                    aux.getLeft().setColor(NodeColor.BLACK);
+                    if (aux != null && aux.getLeft() != null) {
+                        aux.getLeft().setColor(NodeColor.BLACK);
+                    }
                     rotateRight(node.getParent());
                     node = root;
                 }
@@ -289,6 +317,9 @@ public class MyIntervalTree<T> {
 
     private void rotateLeft(MyNode<T> node) {
         MyNode<T> pivot = node.getRight();
+        if (pivot == null) {
+            return;
+        }
         NodeDirection dir = node.parentDirection();
         MyNode<T> prnt = node.getParent();
         MyNode<T> tmp = pivot.getLeft();
@@ -313,6 +344,9 @@ public class MyIntervalTree<T> {
 
     private void rotateRight(MyNode<T> node) {
         MyNode<T> pivot = node.getLeft();
+        if(pivot == null) {
+            return;
+        }
         NodeDirection dir = node.parentDirection();
         MyNode<T> prnt = node.getParent();
         MyNode<T> tmp = pivot.getRight();
