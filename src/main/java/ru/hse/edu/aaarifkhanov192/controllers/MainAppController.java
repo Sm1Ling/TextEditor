@@ -33,6 +33,7 @@ import ru.hse.edu.aaarifkhanov192.supportiveclasses.intervaltree.MyIntervalTree;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.text.RuleBasedCollator;
 import java.util.*;
 
 public class MainAppController {
@@ -84,11 +85,6 @@ public class MainAppController {
     //For copy and paste indexes of old and new positions.
     private int lettersToCursorOld = 0;
     private int lettersToCursorNew = 0;
-
-    //Для правильной работы выделения текста.
-    private Pair<Integer, Integer> cursorOld;   //координаты, где произошел onPressed
-    private Pair<Integer, Integer> cursorNew;   //Координаты, где происходит drag
-    private final LineLight lineLight = new LineLight();    //Класс для выделенных линий.
 
     private WatchFileChanges wfc;   //WatchService
 
@@ -156,7 +152,6 @@ public class MainAppController {
     }
 
 
-    //TODO Разобраться с CtrlZ CtrlV
     //TODO Возможно присобачить выделение
     //TODO Однажды тут будут тесты
     @FXML
@@ -379,102 +374,6 @@ public class MainAppController {
         }
     }
 
-    /**
-     * Метод для покраски выделенных символов.
-     *
-     * @param canvas  Полотно отрисовки.
-     * @param metrics Метрики шрифта.
-     */
-    private void highlightOnDrag(Canvas canvas, FontMetrics metrics) {
-        if (lettersToCursorOld - lettersToCursorNew != 0) {
-            int ctr = 0;
-            for (Integer k : lineLight.getLines()) {
-                //попали на изначальную строку
-                if (Objects.equals(k, cursorOld.getValue())) {
-                    //И это линия, на которой курсор
-                    if (ctr == lineLight.size() - 1) {
-                        canvas.drawRect(new Rect(
-                                        settingsClass.startXPosition + cursorOld.getKey() * letterWidth,
-                                        (cursorOld.getValue()) * lineHeight,
-                                        settingsClass.startXPosition + (cursorNew.getKey()) * letterWidth,
-                                        (cursorNew.getValue()) * (lineHeight) + settingsClass.startYPosition
-                                                + metrics.getDescent()
-                                ),
-                                settingsClass.selectionColor
-                        );
-
-                        ctr++;
-                        continue;
-                    }
-
-                    //Если курсор на другой линии
-                    if (!lineLight.isReversed()) {
-                        canvas.drawRect(new Rect(
-                                        settingsClass.startXPosition + cursorOld.getKey() * letterWidth,
-                                        cursorOld.getValue() * lineHeight,
-                                        settingsClass.startXPosition + (activeCanvas.linesLengths.get(cursorOld.getValue()) - 1) * letterWidth,
-                                        cursorOld.getValue() * (lineHeight) + settingsClass.startYPosition
-                                                + metrics.getDescent()
-                                ),
-                                settingsClass.selectionColor
-                        );
-                    } else {
-                        canvas.drawRect(new Rect(
-                                        settingsClass.startXPosition - centerX,
-                                        cursorOld.getValue() * (lineHeight),
-                                        settingsClass.startXPosition + (cursorOld.getKey()) * letterWidth,
-                                        cursorOld.getValue() * lineHeight + settingsClass.startYPosition
-                                                + metrics.getDescent()
-                                ),
-                                settingsClass.selectionColor
-                        );
-                    }
-
-                }
-
-                //Если это не текущая строка
-                if (ctr != lineLight.size() - 1 && !Objects.equals(k, cursorOld.getValue())) {
-                    canvas.drawRect(new Rect(
-                                    settingsClass.startXPosition - centerX,
-                                    k * lineHeight,
-                                    settingsClass.startXPosition
-                                            + (activeCanvas.linesLengths.get(k) - 1) * letterWidth,
-                                    k * (lineHeight) + settingsClass.startYPosition
-                                            + metrics.getDescent()
-                            ),
-                            settingsClass.selectionColor
-                    );
-                }
-
-                if (ctr == lineLight.size() - 1 && !Objects.equals(k, cursorOld.getValue())) {
-                    //Если же мы на друой линии, но нашли текущую
-                    if (!lineLight.isReversed()) {
-                        canvas.drawRect(new Rect(
-                                        settingsClass.startXPosition - centerX,
-                                        k * lineHeight,
-                                        settingsClass.startXPosition + (cursorNew.getKey()) * letterWidth,
-                                        cursorNew.getValue() * (lineHeight) + settingsClass.startYPosition
-                                                + metrics.getDescent()
-                                ),
-                                settingsClass.selectionColor
-                        );
-                    } else {
-                        canvas.drawRect(new Rect(
-                                        settingsClass.startXPosition + (cursorNew.getKey()) * letterWidth,
-                                        cursorNew.getValue() * (lineHeight),
-                                        settingsClass.startXPosition +
-                                                (activeCanvas.linesLengths.get(k) - 1) * letterWidth,
-                                        k * lineHeight + settingsClass.startYPosition + metrics.getDescent()
-                                ),
-                                settingsClass.selectionColor
-                        );
-                    }
-                }
-                ctr++;
-            }
-        }
-    }
-
     private void renderIndexes() {
         var data = Objects.requireNonNull(makeIndexes().encodeToData()).getBytes();
         javafx.scene.image.Image img = new javafx.scene.image.Image(new ByteArrayInputStream(data));
@@ -501,23 +400,32 @@ public class MainAppController {
             activeCanvas.colorTree.delete(chosenInterval.get(0).getInterval()); // избавляюсь от цвета посреди слова
         }
 
-        int temp = Math.min(activeCanvas.startEditChars, activeCanvas.startEditChars + activeCanvas.editChars);
+        int shift = Math.min(activeCanvas.startEditChars, activeCanvas.startEditChars + activeCanvas.editChars);
 
-        highlightOnDrag(canvas, settingsClass.mainFont.getMetrics());
+        int leftSelectionBorder = Math.min(lettersToCursorOld,lettersToCursorNew);
+        int rightSelectionBorder = Math.max(lettersToCursorOld,lettersToCursorNew);
+
+        //highlightOnDrag(canvas, settingsClass.mainFont.getMetrics());
         for (Character character : activeCanvas.text) {
             if (character != '\n') {
                 var textLine = TextLine.make(String.valueOf(character), settingsClass.mainFont);
                 //region неэффективный способ
-                 if(temp == -1 || i < temp) {
-                     drawText(i,x,y,canvas,textLine);
-                 }
-                 else if(i >= activeCanvas.startEditChars &&
-                         i <= activeCanvas.startEditChars + activeCanvas.editChars){
-                     canvas.drawTextLine(textLine,x,y,settingsClass.mainColor);
-                 }
-                 else {
-                     drawText(i - activeCanvas.editChars,x,y,canvas,textLine);
-                 }
+                if( i>= leftSelectionBorder && i<rightSelectionBorder){
+                    canvas.drawRect(new Rect(x,y + settingsClass.mainFont.getMetrics().getTop(),
+                            x+textLine.getWidth(), y + settingsClass.mainFont.getMetrics().getBottom()),
+                            settingsClass.selectionColor);
+                }
+
+                if(shift == -1 || i < shift) {
+                    drawText(i,x,y,canvas,textLine);
+                }
+                else if(i >= activeCanvas.startEditChars &&
+                        i <= activeCanvas.startEditChars + activeCanvas.editChars){
+                    canvas.drawTextLine(textLine,x,y,settingsClass.mainColor);
+                }
+                else {
+                    drawText(i - activeCanvas.editChars,x,y,canvas,textLine);
+                }
                 //endregion
                 x += textLine.getWidth();
             } else {
@@ -711,10 +619,6 @@ public class MainAppController {
         }
     };
 
-    private final Runnable ctrlCPressed = this::onCtrlCRelease;
-
-    private final Runnable ctrlVPressed = this::onCtrlVRelease;
-
     private final Runnable ctrlYPressed = new Runnable() {
         @Override
         public void run() {
@@ -725,46 +629,44 @@ public class MainAppController {
         }
     };
 
-    private void onCtrlCRelease() {
-        Clipboard clipboard = Clipboard.getSystemClipboard();
+    private final Runnable ctrlCPressed = new Runnable() {
+        @Override
+        public void run() {
+            Clipboard clipboard = Clipboard.getSystemClipboard();
 
-        //swap
-        if (lettersToCursorNew < lettersToCursorOld) {
-            Pair<Integer, Integer> tmp = new Pair<>(cursorOld.getKey(), cursorOld.getValue());
-            cursorOld = new Pair<>(cursorNew.getKey(), cursorNew.getValue());
-            cursorNew = new Pair<>(tmp.getKey(), tmp.getValue());
-
-            lettersToCursorNew += lettersToCursorOld;
-            lettersToCursorOld = lettersToCursorNew - lettersToCursorOld;
-            lettersToCursorNew -= lettersToCursorOld;
+            ClipboardContent content = new ClipboardContent();
+            content.putString(activeCanvas.text.subSequence(
+                    Math.min(lettersToCursorOld,lettersToCursorNew),
+                    Math.max(lettersToCursorOld,lettersToCursorNew)).toString());
+            clipboard.setContent(content);
+            lettersToCursorOld = 0;
+            lettersToCursorNew = 0;
         }
+    };
 
-        ClipboardContent content = new ClipboardContent();
-        content.putString(activeCanvas.text.subSequence(lettersToCursorOld, lettersToCursorNew).toString());
-        clipboard.setContent(content);
-        lettersToCursorOld = 0;
-        lettersToCursorNew = 0;
-    }
+    private final Runnable  ctrlVPressed = new Runnable() {
 
-    private void onCtrlVRelease() {
-        int letterCursor = lettersToCursor();
-        String clipBoardText = Clipboard.getSystemClipboard().getString();
-        activeCanvas.text = activeCanvas.text.insert(letterCursor, clipBoardText);
+        @Override
+        public void run() {
+            int letterCursor = lettersToCursor();
+            String clipBoardText = Clipboard.getSystemClipboard().getString();
+            activeCanvas.text = activeCanvas.text.insert(letterCursor, clipBoardText);
 
-        activeCanvas.undoRedo.addAction(
-                new Action(
-                        letterCursor,
-                        letterCursor + clipBoardText.length(),
-                        clipBoardText,
-                        false));
-        runLexer();
-        fileSaver.call(1);
-        clipboardTextAnalyzer(clipBoardText);
-        textAnalyzer();
-        resetCursor();
-        render();
+            activeCanvas.undoRedo.addAction(
+                    new Action(
+                            letterCursor,
+                            letterCursor + clipBoardText.length(),
+                            clipBoardText,
+                            false));
+            runLexer();
+            fileSaver.call(1);
+            clipboardTextAnalyzer(clipBoardText);
+            textAnalyzer();
+            resetCursor();
+            render();
 
-    }
+        }
+    };
 
     private void clipboardTextAnalyzer(String text) {
         String[] splitAr = text.split("\n");
@@ -811,14 +713,12 @@ public class MainAppController {
     private final EventHandler<MouseEvent> canvasMousePressed = new javafx.event.EventHandler<>() {
         @Override
         public void handle(MouseEvent mouseEvent) {
-            lineLight.reload();
             tfCanvas.requestFocus();
             countCursor(mouseEvent);
             resetCursor();
             render();
 
             lettersToCursorOld = lettersToCursor();
-            cursorOld = new Pair<>(activeCanvas.coursorX, activeCanvas.coursorY);
         }
     };
 
@@ -830,9 +730,7 @@ public class MainAppController {
             countCursor(mouseEvent);
             resetCursor();
             lettersToCursorNew = lettersToCursor();
-            cursorNew = new Pair<>(activeCanvas.coursorX, activeCanvas.coursorY);
 
-            lineLight.process(cursorNew.getValue());
             render();
         }
 
@@ -851,11 +749,6 @@ public class MainAppController {
             }
 
             resetCursor();
-
-            if ((cursorNew != null && activeCanvas.coursorX != cursorNew.getKey()) ||
-                    (cursorNew != null && activeCanvas.coursorY != cursorNew.getValue())) {
-                lineLight.reload();
-            }
             render();
 
             //for paste
