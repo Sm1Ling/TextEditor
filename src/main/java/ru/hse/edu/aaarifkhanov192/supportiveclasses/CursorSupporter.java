@@ -66,4 +66,8 @@ public class CursorSupporter {
         lettersToCursorOld = -1;
         lettersToCursorNew = -1;
     }
+
+    public boolean isSelectionActive(){
+        return cursorOldX != -1 && cursorOldY != -1;
+    }
 }

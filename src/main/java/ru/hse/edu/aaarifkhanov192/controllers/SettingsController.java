@@ -61,10 +61,8 @@ public class SettingsController {
         });
 
         backgroundColor.setOnAction((e)->{
-            mcontroller.background.setStyle("-fx-background-color: #" +
-                    Integer.toHexString((int)(backgroundColor.getValue().getRed()*255))+
-                    Integer.toHexString((int)(backgroundColor.getValue().getGreen()*255))+
-                    Integer.toHexString((int)(backgroundColor.getValue().getBlue()*255))+";");
+            String temp = "-fx-background-color: #" + backgroundColor.getValue().toString().substring(2,8)+";";
+            mcontroller.background.setStyle(temp);
         });
 
         mainFont.setOnAction((e)->{

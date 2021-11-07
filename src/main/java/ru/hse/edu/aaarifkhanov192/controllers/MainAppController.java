@@ -1,5 +1,6 @@
 package ru.hse.edu.aaarifkhanov192.controllers;
 
+import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.event.EventHandler;
@@ -107,7 +108,7 @@ public class MainAppController {
                 fm.setFilePath(fm.getFilePath().substring(0, fm.getFilePath().length() - 1));
                 initFileWatcher();
 
-                createPannel(fm.readText(), fm.getFilePath());
+                createPanel(fm.readText(), fm.getFilePath());
             }
         });
     }
@@ -129,10 +130,10 @@ public class MainAppController {
                 try {
                     if (!fm.getHash(activeCanvas.text.toString())
                             .equals(fm.getHash(fm.readText()))) {
-                        System.out.println("FILE CHANGED, WOULD YOU LIKE DO LOAD IT?");
-                        createModulePane();
-                    } else {
-                        System.out.println("FILE DID NOT CHANGED");
+                        Thread panelThread = new Thread(() ->
+                                Platform.runLater(this::createModulePane));
+                        panelThread.start();
+                        panelThread.interrupt();
                     }
                 } catch (Throwable e) {
                     System.out.println(e.getMessage());
@@ -175,7 +176,7 @@ public class MainAppController {
     }
 
 
-    private void createPannel(String text, String path) {
+    private void createPanel(String text, String path) {
         if (!appstarted) {
             tfCanvas.setOnKeyTyped(onKeyTyped);
             tfCanvas.setOnKeyPressed(onKeyPressed);
@@ -255,6 +256,7 @@ public class MainAppController {
     }
 
     private void closeCanvas(TextCanvas canvas) {
+        canvas.cursor.resetValues();
         if (canvas == null) {
             return;
         }
@@ -300,6 +302,8 @@ public class MainAppController {
             e.setVisible(activeness);
         }
     }
+
+
 
     //endregion
 
@@ -355,10 +359,6 @@ public class MainAppController {
 
         int shift = Math.min(activeCanvas.startEditChars, activeCanvas.startEditChars + activeCanvas.editChars);
 
-        int leftSelectionBorder = Math.min(activeCanvas.cursor.lettersToCursorOld, activeCanvas.cursor.lettersToCursorNew);
-        int rightSelectionBorder = Math.max(activeCanvas.cursor.lettersToCursorOld, activeCanvas.cursor.lettersToCursorNew);
-
-
         drawSelection(canvas);
         for (Character character : activeCanvas.text) {
             if (character != '\n') {
@@ -394,10 +394,10 @@ public class MainAppController {
                 activeCanvas.cursor.cursorOldX == -1) {
             return;
         }
-        int lowX = 0;
-        int lowY = 0;
-        int topX = 0;
-        int topY = 0;
+        int lowX;
+        int lowY;
+        int topX;
+        int topY;
         if (activeCanvas.cursor.cursorY < activeCanvas.cursor.cursorOldY ||
                 (activeCanvas.cursor.cursorY == activeCanvas.cursor.cursorOldY &&
                         activeCanvas.cursor.cursorX < activeCanvas.cursor.cursorOldX)) {
@@ -486,6 +486,7 @@ public class MainAppController {
                     return;
                 }
 
+                letNum = writeOnSelected(letNum);
                 String line = keyEvent.getCharacter();
                 for (var w : line.toCharArray()) {
                     if (!checkChar(w, letNum, keyEvent.isShiftDown())) {
@@ -493,7 +494,12 @@ public class MainAppController {
                     }
                 }
 
-                wordPrint.call(1);
+                if(activeCanvas.cursor.isSelectionActive()){
+                    runLexer();
+                    activeCanvas.cursor.resetValues();
+                } else {
+                    wordPrint.call(1);
+                }
                 fileSaver.call(1);
                 textAnalyzer();
                 activeCanvas.cursor.resetCursor(activeCanvas.linesLengths);
@@ -513,8 +519,11 @@ public class MainAppController {
                 activeCanvas.editChars += 1;
             }
             case '\b' -> {
-                if (activeCanvas.cursor.cursorY == 0 && activeCanvas.cursor.cursorX == 0) {
+                if (activeCanvas.cursor.cursorY == 0 && activeCanvas.cursor.cursorX == 0 ) {
                     return false;
+                }
+                if (activeCanvas.cursor.isSelectionActive()){
+                    return true;
                 }
                 if (activeCanvas.cursor.cursorX != 0) {
                     activeCanvas.cursor.cursorX -= 1;
@@ -531,6 +540,9 @@ public class MainAppController {
             case (char) 127 -> {
                 if (letNum == activeCanvas.text.length() - 1) {
                     return false;
+                }
+                if (activeCanvas.cursor.isSelectionActive()){
+                    return true;
                 }
                 activeCanvas.undoRedo.addAction(new Action(letNum, letNum + 1,
                         String.valueOf(activeCanvas.text.charAt(letNum)), true));
@@ -556,6 +568,22 @@ public class MainAppController {
             }
         }
         return true;
+    }
+
+    private int writeOnSelected(int letNum){
+        if (activeCanvas.cursor.isSelectionActive()) {
+            int from = Math.min(activeCanvas.cursor.lettersToCursorOld, activeCanvas.cursor.lettersToCursorNew);
+            int to = Math.max(activeCanvas.cursor.lettersToCursorOld, activeCanvas.cursor.lettersToCursorNew);
+            activeCanvas.undoRedo.addAction(
+                    new Action(from, to, activeCanvas.text.subSequence(from, to).toString(), true));
+            activeCanvas.text = activeCanvas.text.delete(from, to);
+            textAnalyzer();
+            var cursors = activeCanvas.cursor.lineCharToCursor(from,activeCanvas.linesLengths);
+            activeCanvas.cursor.cursorX = cursors[1];
+            activeCanvas.cursor.cursorY = cursors[0];
+            return from;
+        }
+        return letNum;
     }
 
     private final EventHandler<KeyEvent> onKeyPressed = new EventHandler<>() {
@@ -639,6 +667,7 @@ public class MainAppController {
         public void run() {
             int letterCursor = activeCanvas.cursor.lettersToCursor(activeCanvas.linesLengths);
             String clipBoardText = Clipboard.getSystemClipboard().getString();
+            letterCursor = writeOnSelected(letterCursor);
             activeCanvas.text = activeCanvas.text.insert(letterCursor, clipBoardText);
 
             activeCanvas.undoRedo.addAction(
@@ -652,6 +681,7 @@ public class MainAppController {
             activeCanvas.cursor.clipboardTextAnalyzer(clipBoardText);
             textAnalyzer();
             activeCanvas.cursor.resetCursor(activeCanvas.linesLengths);
+            activeCanvas.cursor.resetValues();
             render();
 
         }
@@ -669,6 +699,7 @@ public class MainAppController {
     };
 
     private void ctrlMethod(Action act) {
+        activeCanvas.cursor.resetValues();
         if (activeCanvas.startEditChars == -1) {
             activeCanvas.startEditChars = act.getStart();
         }
@@ -773,6 +804,7 @@ public class MainAppController {
         directoryChooser.setInitialDirectory(new File("."));
         File selectedDir = directoryChooser.showDialog(treeView.getScene().getWindow());
         if (selectedDir != null) {
+            closeFile();
             fillTreeView(selectedDir);
         }
     }
@@ -837,7 +869,7 @@ public class MainAppController {
             return;
         }
 
-        createPannel(fm.readText(), fm.getFilePath());
+        createPanel(fm.readText(), fm.getFilePath());
     }
 
 
