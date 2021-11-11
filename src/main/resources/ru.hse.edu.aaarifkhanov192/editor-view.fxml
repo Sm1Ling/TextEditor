@@ -9,8 +9,8 @@
      <menus>
        <Menu mnemonicParsing="false" text="File">
          <items>
-           <MenuItem onAction="#openMenuClicked" mnemonicParsing="false" styleClass="label" text="Choose Directory" />
-             <MenuItem onAction="#closeFile" mnemonicParsing="false" styleClass="label" text="Close File" />
+           <MenuItem mnemonicParsing="false" onAction="#openMenuClicked" styleClass="label" text="Choose Directory" />
+             <MenuItem mnemonicParsing="false" onAction="#closeFile" styleClass="label" text="Close File" />
          </items>
        </Menu>
        <Menu mnemonicParsing="false" text="Settings">
@@ -48,7 +48,12 @@
                      <HBox alignment="CENTER_RIGHT" prefHeight="375.0" prefWidth="472.0" VBox.vgrow="ALWAYS">
                         <children>
                            <Canvas fx:id="indexCanvas" height="380.0" width="36.0" HBox.hgrow="ALWAYS" />
-                            <Canvas fx:id="tfCanvas" height="380.0" width="416.0" HBox.hgrow="ALWAYS" />
+                           <StackPane prefHeight="150.0" prefWidth="200.0" HBox.hgrow="ALWAYS">
+                              <children>
+                                 <Canvas fx:id="cursorCanvas" height="380.0" width="416.0" />
+                                  <Canvas fx:id="tfCanvas" height="380.0" width="416.0" />
+                              </children>
+                           </StackPane>
                            <ScrollBar fx:id="vScroll" orientation="VERTICAL" prefHeight="398.0" prefWidth="14.0" style="-fx-background-color: #00000000; -fx-opacity: 0.4;" HBox.hgrow="ALWAYS" />
                         </children>
                      </HBox>

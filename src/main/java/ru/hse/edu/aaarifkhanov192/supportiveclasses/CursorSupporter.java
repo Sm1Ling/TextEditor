@@ -38,12 +38,16 @@ public class CursorSupporter {
     }
 
     public int lettersToCursor(List<Integer> linesLength) {
+        return lettersToXY(linesLength, cursorX, cursorY);
+    }
+
+    public int lettersToXY(List<Integer> linesLength, int x, int y){
         int letters = 0;
         for (int i = 0; i < linesLength.size(); i++) {  //activeCanvas.linesLengths.size()
-            if (i != cursorY) {
+            if (i != y) {
                 letters += linesLength.get(i);//activeCanvas.linesLengths.get(i);
             } else {
-                letters += cursorX;
+                letters += x;
                 return letters;
             }
         }

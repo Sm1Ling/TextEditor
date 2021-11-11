@@ -18,7 +18,7 @@ public class SettingsClass {
 
     public final Integer undoRedoSize = 50;
 
-    public float startXPosition = 2;
+    public float startXPosition = 0;
     public float startYPosition = mainFont.getMetrics().getHeight();
 
     public SettingsClass(){

@@ -42,6 +42,8 @@ public class MainAppController {
     @FXML
     private javafx.scene.canvas.Canvas tfCanvas;
     @FXML
+    private javafx.scene.canvas.Canvas cursorCanvas;
+    @FXML
     private javafx.scene.canvas.Canvas indexCanvas;
     @FXML
     private ScrollBar hScroll;
@@ -146,9 +148,6 @@ public class MainAppController {
         wfc.startObserve();
     }
 
-
-    //TODO Возможно присобачить выделение
-    //TODO Однажды тут будут тесты
     @FXML
     private void initialize() {
 
@@ -203,7 +202,7 @@ public class MainAppController {
             appstarted = true;
         }
 
-        setActiveElements(new Node[]{tfCanvas, hScroll, vScroll, indexCanvas}, true);
+        setActiveElements(new Node[]{tfCanvas, hScroll, vScroll, indexCanvas, cursorCanvas}, true);
 
         activeCanvas = new TextCanvas();
         fm.setActiveCanvas(activeCanvas);
@@ -264,7 +263,7 @@ public class MainAppController {
         wordPrint.terminate();
         fileSaver.terminate();
 
-        setActiveElements(new Node[]{tfCanvas, hScroll, vScroll, indexCanvas}, false);
+        setActiveElements(new Node[]{tfCanvas, hScroll, vScroll, indexCanvas,cursorCanvas}, false);
 
         activeCanvas = null;
     }
@@ -318,12 +317,12 @@ public class MainAppController {
         Thread renderIdx = new Thread(this::renderIndexes);
         try {
             renderIdx.start();
+            renderCursor();
             var data = Objects.requireNonNull(makeImage().encodeToData()).getBytes();
             javafx.scene.image.Image img = new javafx.scene.image.Image(new ByteArrayInputStream(data));
             renderIdx.join();
 
             tfCanvas.getGraphicsContext2D().clearRect(0, 0, tfCanvas.getWidth(), tfCanvas.getHeight());
-
             tfCanvas.getGraphicsContext2D().drawImage(img, 0, 0,
                     tfCanvas.getWidth(), tfCanvas.getHeight());
         } catch (InterruptedException e) {
@@ -340,6 +339,15 @@ public class MainAppController {
                 indexCanvas.getWidth(), indexCanvas.getHeight());
     }
 
+    private void renderCursor() {
+        var data = Objects.requireNonNull(drawCursor().encodeToData()).getBytes();
+        javafx.scene.image.Image img = new javafx.scene.image.Image(new ByteArrayInputStream(data));
+
+        cursorCanvas.getGraphicsContext2D().clearRect(0,0,cursorCanvas.getWidth(), cursorCanvas.getHeight());
+        cursorCanvas.getGraphicsContext2D().drawImage(img, 0, 0,
+                cursorCanvas.getWidth(), cursorCanvas.getHeight());
+    }
+
     private Image makeImage() {
         Surface surface = Surface.makeRasterN32Premul((int) (screenWidth), (int) (screenHeight));
         Canvas canvas = surface.getCanvas();
@@ -348,8 +356,6 @@ public class MainAppController {
         float x = settingsClass.startXPosition - centerX;
         float y = settingsClass.startYPosition - centerY;
 
-        int i = 0;
-
         int lettersToCur = activeCanvas.cursor.lettersToCursor(activeCanvas.linesLengths);
 
         var chosenInterval = activeCanvas.colorTree.getIntervals(lettersToCur);
@@ -357,10 +363,20 @@ public class MainAppController {
             activeCanvas.colorTree.delete(chosenInterval.get(0).getInterval()); // избавляюсь от цвета посреди слова
         }
 
+        int startLine = Math.max((int) Math.ceil((double)centerY/lineHeight)-1,0);
+        int endLine = (int) Math.max(startLine + linesCount+2,activeCanvas.linesLengths.size());
+
+        y+= startLine*lineHeight;
+
+        int i = activeCanvas.cursor.lettersToXY(activeCanvas.linesLengths,0,startLine);
+        int i2 = activeCanvas.cursor.lettersToXY(activeCanvas.linesLengths,0,endLine);
+
+
         int shift = Math.min(activeCanvas.startEditChars, activeCanvas.startEditChars + activeCanvas.editChars);
 
-        drawSelection(canvas);
-        for (Character character : activeCanvas.text) {
+        Rope text = activeCanvas.text.subSequence(i,i2);
+
+        for (Character character : text) {
             if (character != '\n') {
                 var textLine = TextLine.make(String.valueOf(character), settingsClass.mainFont);
                 // неэффективный способ
@@ -380,12 +396,19 @@ public class MainAppController {
             i++;
         }
 
-        x = settingsClass.startXPosition - centerX + activeCanvas.cursor.cursorX * letterWidth;
-        y = settingsClass.startYPosition - centerY + activeCanvas.cursor.cursorY * lineHeight;
+        return surface.makeImageSnapshot();
+    }
 
+    private Image drawCursor(){
+        Surface surface = Surface.makeRasterN32Premul((int) (screenWidth), (int) (screenHeight));
+        Canvas canvas = surface.getCanvas();
+
+        float x = settingsClass.startXPosition - centerX + activeCanvas.cursor.cursorX * letterWidth;
+        float y = settingsClass.startYPosition - centerY + activeCanvas.cursor.cursorY * lineHeight;
+
+        drawSelection(canvas);
         canvas.drawLine(x, y + settingsClass.mainFont.getMetrics().getDescent(),
                 x, y + settingsClass.mainFont.getMetrics().getAscent(), settingsClass.coursorColor);
-
         return surface.makeImageSnapshot();
     }
 
@@ -424,13 +447,13 @@ public class MainAppController {
                         settingsClass.selectionColor);
             } else {
                 canvas.drawRect(new Rect(x,
-                                y - centerY + settingsClass.mainFont.getMetrics().getTop(),
+                                y + settingsClass.mainFont.getMetrics().getTop(),
                                 screenWidth,
-                                y  - centerY + settingsClass.mainFont.getMetrics().getBottom() + 1),
+                                y  + settingsClass.mainFont.getMetrics().getBottom() + 1),
                         settingsClass.selectionColor);
             }
             lowX = 0;
-            x = settingsClass.startXPosition;
+            x = -centerX;
             y += lineHeight;
         }
 
@@ -453,16 +476,19 @@ public class MainAppController {
         Surface surface = Surface.makeRasterN32Premul((int) indexScreenWidth, (int) (screenHeight));
         Canvas canvas = surface.getCanvas();
 
-        float x = indexScreenWidth / 8;
-        float y = lineHeight - centerY;
+        int startLine = Math.max((int) Math.ceil((double)centerY/lineHeight)-1,0);
+        int endLine = (int) Math.max(startLine + linesCount+2,activeCanvas.linesLengths.size());
 
-        for (int i = 0; i < activeCanvas.linesLengths.size(); i++) {
+        float x = indexScreenWidth / 8;
+        float y = lineHeight - centerY + lineHeight*startLine;
+
+        for (int i = startLine; i < endLine; i++) {
             canvas.drawTextLine(TextLine.make(String.valueOf(i + 1), settingsClass.mainFont), x, y,
                     settingsClass.lineColor);
             y += lineHeight;
         }
 
-        canvas.drawLine(indexScreenWidth - 1, 0, indexScreenWidth - 1, screenHeight,
+        canvas.drawLine(indexScreenWidth - 4, 0, indexScreenWidth - 4, screenHeight,
                 settingsClass.lineColor);
 
         return surface.makeImageSnapshot();
@@ -725,7 +751,7 @@ public class MainAppController {
             tfCanvas.requestFocus();
             countCursor(mouseEvent);
             activeCanvas.cursor.resetCursor(activeCanvas.linesLengths);
-            render();
+            renderCursor();
 
             activeCanvas.cursor.lettersToCursorOld = activeCanvas.cursor.lettersToCursor(activeCanvas.linesLengths);
             activeCanvas.cursor.cursorOldX = activeCanvas.cursor.cursorX;
@@ -742,7 +768,7 @@ public class MainAppController {
             activeCanvas.cursor.resetCursor(activeCanvas.linesLengths);
             activeCanvas.cursor.lettersToCursorNew = activeCanvas.cursor.lettersToCursor(activeCanvas.linesLengths);
 
-            render();
+            renderCursor();
         }
 
     };
@@ -758,13 +784,15 @@ public class MainAppController {
             }
             countCursor(mouseEvent);
 
-            if (activeCanvas.startEditChars != -1) {
-                runLexer();
-            }
-
             activeCanvas.cursor.resetCursor(activeCanvas.linesLengths);
             activeCanvas.cursor.lettersToCursorNew = activeCanvas.cursor.lettersToCursor(activeCanvas.linesLengths);
-            render();
+            if (activeCanvas.startEditChars != -1) {
+                runLexer();
+                render();
+            }
+            else {
+                renderCursor();
+            }
         }
     };
 
@@ -862,8 +890,8 @@ public class MainAppController {
     private void createModulePane() {
         Alert alertConf = new Alert(Alert.AlertType.CONFIRMATION);
         alertConf.setTitle("Внимание!");
-        alertConf.setHeaderText("Дефолтовая база данных будет дополнена импортом");
-        alertConf.setContentText("Все-равно продолжить импорт данных?");
+        alertConf.setHeaderText("Произошли изменения в файле извне.");
+        alertConf.setContentText("Загрузить изменения?");
         Optional<ButtonType> res = alertConf.showAndWait();
         if (res.isPresent() && res.get() != ButtonType.OK) {
             return;
